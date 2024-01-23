@@ -36,3 +36,40 @@
     transform: rotate(360deg);
   }
 }
+
+
+li {
+  list-style-type: none;
+}
+
+.canvas {
+  position: absolute;
+}
+
+.blend-shapes-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.blend-shapes-label {
+  width: 100px;
+  text-align: right;
+  margin-right: 16px;
+}
+
+.blend-shapes-value {
+  background-color: #f0f0f0;
+  display: inline-block;
+  height: 20px;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.blend-shapes-value:before {
+  content: '';
+  display: block;
+  background-color: #3498db;
+  height: 100%;
+}
