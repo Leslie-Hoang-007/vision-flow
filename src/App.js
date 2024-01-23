@@ -160,12 +160,12 @@ function App() {
   const [lastActionTime, setLastActionTime] = useState(0);
 
 
-  const downArrowEvent = new KeyboardEvent('keydown', {
-    key: 'ArrowDown',
-    code: 'ArrowDown',
-    keyCode: 40,
-    which: 40,
-  });
+  // const downArrowEvent = new KeyboardEvent('keydown', {
+  //   key: 'ArrowDown',
+  //   code: 'ArrowDown',
+  //   keyCode: 40,
+  //   which: 40,
+  // });
 
   const dispatchDownArrowEvent = () => {
     const currentTime = Math.floor(new Date().getTime());
@@ -173,7 +173,7 @@ function App() {
     // document.dispatchEvent(downArrowEvent);
     console.log("down");
     scrollDown();
-    // const iframe = document.getElementById('if1'); // Replace 'if1' with the actual ID of your iframe
+    const iframe = document.getElementById('if1'); // Replace 'if1' with the actual ID of your iframe
     // iframe.contents().scrollTop(438);
     // iframe.contentWindow.document.dispatchEvent(downArrowEvent);
     // iframe.contentWindow.document.scrollTop(123);// workd but denied
@@ -183,6 +183,18 @@ function App() {
     window.scrollBy(0, 100); // Adjust the value based on how much you want to scroll down
   };
 
+  const dispatchUpArrowEvent = () => {
+    const currentTime = Math.floor(new Date().getTime());
+    setLastActionTime(currentTime);
+    // document.dispatchEvent(downArrowEvent);
+    console.log("up");
+    scrollUp();
+  };
+
+  
+  const scrollUp = () => {
+    window.scrollBy(0, -100); 
+  };
 
   const render = () => {
     if (dBlendShapes != null) {
@@ -205,7 +217,7 @@ function App() {
             <li>
               <p>{dBlendShapes[0].categories[11].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[11].score) * 100}% - 120px)` }} /> </p>
               <p>{dBlendShapes[0].categories[11].score}</p>
-              {Math.floor(new Date().getTime()) > (lastActionTime + 1000) && dBlendShapes[0].categories[11].score > 0.5 ? dispatchDownArrowEvent() : ""}
+              {Math.floor(new Date().getTime()) > (lastActionTime + 1000) && dBlendShapes[0].categories[11].score > 0.4 ? dispatchDownArrowEvent() : ""}
             </li>
             <li>
               <p>{dBlendShapes[0].categories[12].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[12].score) * 100}% - 120px)` }} /> </p>
@@ -214,6 +226,7 @@ function App() {
             <li>
               <p>{dBlendShapes[0].categories[17].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[17].score) * 100}% )` }} /> </p>
               <p>{dBlendShapes[0].categories[17].score}</p>
+              {Math.floor(new Date().getTime()) > (lastActionTime + 1000) && dBlendShapes[0].categories[17].score > 0.04 ? dispatchUpArrowEvent() : ""}
             </li>
             <li>
               <p>{dBlendShapes[0].categories[18].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[18].score) * 100}% )` }} /> </p>
@@ -266,24 +279,22 @@ function App() {
         id="if1"
         width="100%"
         allowScriptAccess="always"
-        height="100%"
+        height="1000px"
         src="https://www.google.com/search?igu=1"
         frameBorder="0"
         allowFullScreen
-        scrolling="yes"
+        scrolling="no"
         style={{
           position: 'absolute',
-          overflow: 'scroll',
           top: 0,
           left: 0,
           bottom: 0,
           right: 0,
           width: '100%',
-          height: '100%',
+          height: '5000px',
           border: 'none',
           margin: 0,
           padding: 0,
-          overflow: 'hidden',
           zIndex: 999999,
         }}
       ></iframe>
@@ -291,5 +302,6 @@ function App() {
     </div>
   );
 }
-
+// https://www.google.com/search?igu=1&ei=&q=YOUR+WORD
+// https://www.google.com/search?igu=1
 export default App;
