@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { FaceLandmarker, FilesetResolver, DrawingUtils } from "@mediapipe/tasks-vision";
-
+import YouTube from 'react-youtube';
 import './App.css';
 
 function App() {
@@ -173,7 +173,7 @@ function App() {
     // document.dispatchEvent(downArrowEvent);
     console.log("down");
     scrollDown();
-    const iframe = document.getElementById('if1'); // Replace 'if1' with the actual ID of your iframe
+    // const iframe = document.getElementById('if1'); // Replace 'if1' with the actual ID of your iframe
     // iframe.contents().scrollTop(438);
     // iframe.contentWindow.document.dispatchEvent(downArrowEvent);
     // iframe.contentWindow.document.scrollTop(123);// workd but denied
@@ -191,9 +191,9 @@ function App() {
     scrollUp();
   };
 
-  
+
   const scrollUp = () => {
-    window.scrollBy(0, -100); 
+    window.scrollBy(0, -100);
   };
 
   const render = () => {
@@ -245,7 +245,31 @@ function App() {
     }
   };
 
+  const opts = {
+    height: '315',
+    width: '560',
+    playerVars: {
+      // Options for YouTube Player API
+      autoplay: 1,  // Auto-play the video
+      mute: 1,  // Auto-play the video
+    },
+  };
+  const onReady = (event) => {
+    // Access to player in all event handlers via event.target
+    const player = event.target;
 
+    // Unmute the video
+    player.unMute();
+
+    // Play the video after unmuting
+    player.playVideo();
+
+  };
+
+  const play = (event) => {
+    const player = event.target;
+    player.playVideo();
+  }
 
   return (
     <div>
@@ -275,6 +299,7 @@ function App() {
         </div>
 
       </section>
+
       <iframe
         id="if1"
         width="100%"
@@ -298,10 +323,46 @@ function App() {
           zIndex: 999999,
         }}
       ></iframe>
-
     </div>
   );
 }
 // https://www.google.com/search?igu=1&ei=&q=YOUR+WORD
 // https://www.google.com/search?igu=1
+
+// SHORTS
+{/* <iframe width="315" height="560"
+src="https://www.youtube.com/embed/QPOLrbKI5oQ"
+title="YouTube video player" frameborder="0"
+allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture;web-share"
+allowfullscreen>
+</iframe> */}
+
+
+{/* <iframe
+id="if1"
+width="100%"
+allowScriptAccess="always"
+height="1000px"
+src="https://www.google.com/search?igu=1"
+frameBorder="0"
+allowFullScreen
+scrolling="no"
+style={{
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  bottom: 0,
+  right: 0,
+  width: '100%',
+  height: '5000px',
+  border: 'none',
+  margin: 0,
+  padding: 0,
+  zIndex: 999999,
+}}
+></iframe> */}
+
+
+{/* <YouTube videoId="QPOLrbKI5oQ" opts={opts} onReady={onReady} onPause={play}/> */ }
+
 export default App;
