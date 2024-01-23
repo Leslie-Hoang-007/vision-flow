@@ -34,6 +34,11 @@ function App() {
 
   }, []);
 
+  useEffect(() => {
+    if (faceLandmarker) {
+      enableCam(); // Invoke enableCam right away
+    }
+  }, [faceLandmarker]);
 
   const enableCam = async (event) => {
     if (!faceLandmarker) {
@@ -166,23 +171,18 @@ function App() {
     const currentTime = Math.floor(new Date().getTime());
     setLastActionTime(currentTime);
     // document.dispatchEvent(downArrowEvent);
-
-    document.getElementById('if1').scrollTop = 438
     console.log("down");
-    // scrollDown();
-    const iframe = document.getElementById('if1'); // Replace 'if1' with the actual ID of your iframe
+    scrollDown();
+    // const iframe = document.getElementById('if1'); // Replace 'if1' with the actual ID of your iframe
+    // iframe.contents().scrollTop(438);
     // iframe.contentWindow.document.dispatchEvent(downArrowEvent);
+    // iframe.contentWindow.document.scrollTop(123);// workd but denied
   };
 
-  // const scrollDown = () => {
-  //   window.scrollBy(0, 100); // Adjust the value based on how much you want to scroll down
-  // };
   const scrollDown = () => {
-    const iframe = document.getElementById('if1'); // Replace 'if1' with the actual ID of your iframe
-
-    iframe.contentWindow.scrollTop = 438 // Adjust the value based on how much you want to scroll down
-
+    window.scrollBy(0, 100); // Adjust the value based on how much you want to scroll down
   };
+
 
   const render = () => {
     if (dBlendShapes != null) {
@@ -238,7 +238,7 @@ function App() {
     <div>
       <h1>Face landmark detection using the MediaPipe FaceLandmarker task</h1>
 
-      <section id="demos" className="invisible">
+      <section id="demos" className="invisible" style={{ display: 'none' }}>
 
         <div className="blend-shapes">
           <ul className="blend-shapes-list" id="image-blend-shapes"></ul>
@@ -260,15 +260,34 @@ function App() {
           </ul>
 
         </div>
-        <iframe width="315" height="560"
-          src="https://www.youtube.com/shorts/MbwTV4Tj_6o"
-          title="YouTube video player"
-          frameborder="0"
-          allowfullscreen></iframe>
-
-        <iframe id="if1" width="100%" allowScriptAccess="always" height="500px" src=" https://www.google.com/search?igu=1" frameborder="0" allowfullscreen></iframe>
 
       </section>
+      <iframe
+        id="if1"
+        width="100%"
+        allowScriptAccess="always"
+        height="100%"
+        src="https://www.google.com/search?igu=1"
+        frameBorder="0"
+        allowFullScreen
+        scrolling="yes"
+        style={{
+          position: 'absolute',
+          overflow: 'scroll',
+          top: 0,
+          left: 0,
+          bottom: 0,
+          right: 0,
+          width: '100%',
+          height: '100%',
+          border: 'none',
+          margin: 0,
+          padding: 0,
+          overflow: 'hidden',
+          zIndex: 999999,
+        }}
+      ></iframe>
+
     </div>
   );
 }
