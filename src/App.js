@@ -275,7 +275,7 @@ function App() {
     <div>
       <h1>Face landmark detection using the MediaPipe FaceLandmarker task</h1>
 
-      <section id="demos" className="invisible" style={{ display: 'none' }}>
+      <section id="demos" className="invisible" style={{ display: 'block' }}>
 
         <div className="blend-shapes">
           <ul className="blend-shapes-list" id="image-blend-shapes"></ul>
@@ -310,7 +310,7 @@ function App() {
         allowFullScreen
         scrolling="no"
         style={{
-          position: 'absolute',
+          position: 'reletative',
           top: 0,
           left: 0,
           bottom: 0,
@@ -322,7 +322,7 @@ function App() {
           padding: 0,
           zIndex: 999999,
         }}
-      ></iframe>
+      ></iframe>np
     </div>
   );
 }
