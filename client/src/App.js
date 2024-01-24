@@ -2,6 +2,8 @@ import React, { useRef, useEffect, useState } from 'react';
 import { FaceLandmarker, FilesetResolver, DrawingUtils } from "@mediapipe/tasks-vision";
 import YouTube from 'react-youtube';
 import './App.css';
+import { createClient } from "@deepgram/sdk";
+import { LiveTranscriptionEvents } from "@deepgram/sdk";
 
 function App() {
   const [faceLandmarker, setFaceLandmarker] = useState(null);
@@ -12,6 +14,57 @@ function App() {
   const videoWidth = 480;
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const audioRef = useRef(null);
+
+  // deepgramstuff
+  const [transcription, setTranscription] = useState('hello');
+  const [isRecording, setIsRecording] = useState(false);
+  const deepgram = createClient("KEY");
+  let live;
+  const startRecording = async () => {
+    
+    setIsRecording(true);
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true })
+        .then((stream) => {
+          
+          console.log('GOT MIC');
+          console.log({ stream });
+          
+          if (!MediaRecorder.isTypeSupported('audio/webm'))
+            return alert('Browser not supported')
+          const mediaRecorder = new MediaRecorder(stream, {
+            mimeType: 'audio/webm',
+          })
+
+          live = deepgram.listen.live({ model: "nova" });
+
+          live.on(LiveTranscriptionEvents.Open, () => {
+            mediaRecorder.addEventListener('dataavailable', async (event) => {
+              if (event.data.size > 0) {
+                console.log('state', live.getReadyState());
+                live.send(event.data); 
+              }
+            })
+            mediaRecorder.start(1000);
+          });
+          live.on(LiveTranscriptionEvents.Transcript, (data) => {
+            console.log('recieved',data.channel.alternatives[0].transcript);
+          });
+        })
+
+
+      live.keepAlive();
+    } catch (error) {
+      console.error('Error accessing microphone:', error);
+    }
+  };
+  const stopRecording = () => {
+    LiveTranscriptionEvents.Close();
+    setIsRecording(false);
+  };
+
+  //
 
   useEffect(() => {
     // Before we can use FaceLandmarker class, we must wait for it to finish loading.
@@ -30,7 +83,9 @@ function App() {
       });
       setFaceLandmarker(landmarker);
     }
-    createFaceLandmarker();
+
+    // turn off for not face tracking
+    // createFaceLandmarker();
 
   }, []);
 
@@ -273,6 +328,20 @@ function App() {
 
   return (
     <div>
+      <div>
+        <h1>Speech Recognition Test</h1>
+        <button onClick={startRecording} disabled={isRecording}>
+          Start Recording
+        </button>
+        <button onClick={stopRecording} disabled={!isRecording}>
+          Stop Recording
+        </button>
+        <div>
+          <h2>Transcription Output</h2>
+          <pre>{transcription}</pre>
+        </div>
+        <audio ref={audioRef} controls />
+      </div>
       <h1>Face landmark detection using the MediaPipe FaceLandmarker task</h1>
 
       <section id="demos" className="invisible" style={{ display: 'block' }}>
