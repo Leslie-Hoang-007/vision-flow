@@ -295,9 +295,7 @@ function App() {
           <ul className="blend-shapes-list" id="video-blend-shapes">
             {render()}
           </ul>
-
         </div>
-
       </section>
 
       <iframe
