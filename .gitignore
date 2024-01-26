@@ -6,9 +6,6 @@
 /.pnp
 .pnp.js
 
-# remove server
-/server
-
 # testing
 /coverage
 
