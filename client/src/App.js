@@ -385,7 +385,7 @@ function App() {
             <li>{/* Out Right */}
               <p>{dBlendShapes[0].categories[16].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[16].score) * 100}% )` }} /> </p>
               <p>{dBlendShapes[0].categories[16].score}</p>
-              {doneSetup === true && isRecording === true && dBlendShapes[0].categories[16].score > right ? stopRecording() : null}
+              {isRecording === true && dBlendShapes[0].categories[16].score > right ? stopRecording() : null}
             </li>
           </div>)
       }
