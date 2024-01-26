@@ -4,8 +4,13 @@ import YouTube from 'react-youtube';
 import './App.css';
 import { createClient } from "@deepgram/sdk";
 import { LiveTranscriptionEvents } from "@deepgram/sdk";
+import Modal from './components/modal';
+import Instructions from './components/instructions';
 
 function App() {
+  
+
+  // VIDEO MAPPING
   const [faceLandmarker, setFaceLandmarker] = useState(null);
   const [dBlendShapes, setDBlendShapes] = useState(null);
   let runningMode = "IMAGE";
@@ -14,57 +19,90 @@ function App() {
   const videoWidth = 480;
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const audioRef = useRef(null);
 
+  // Audio Transcription 
+  const [live, setLive] = useState(null);
   // deepgramstuff
-  const [transcription, setTranscription] = useState('hello');
+  const [transcription, setTranscription] = useState('');
+  const [prevtranscription, setPrevtranscription] = useState('Search+for+something!');
   const [isRecording, setIsRecording] = useState(false);
   const deepgram = createClient("KEY");
-  let live;
+  // const deepgram = createClient("3bd85db38a54e7a9266947704068dc3e8da53bb3");
+
+
+
+  const [site, setSite] = useState("https://www.google.com/search?igu=1");
+  const [lastActionTime, setLastActionTime] = useState(0);
+  const [modalOpen, setModalOpen] = useState(true);
+  const [start, setStart] = useState(true);
+
+  const close = () => setModalOpen(false);
+  const open = () => setModalOpen(true);
+
   const startRecording = async () => {
-    
     setIsRecording(true);
+    setStart(false);
+    open();
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true })
         .then((stream) => {
-          
           console.log('GOT MIC');
           console.log({ stream });
-          
+
           if (!MediaRecorder.isTypeSupported('audio/webm'))
             return alert('Browser not supported')
           const mediaRecorder = new MediaRecorder(stream, {
             mimeType: 'audio/webm',
           })
 
-          live = deepgram.listen.live({ model: "nova" });
+          // make socket
+          let origLive = deepgram.listen.live({ model: "nova" });
 
-          live.on(LiveTranscriptionEvents.Open, () => {
-            mediaRecorder.addEventListener('dataavailable', async (event) => {
+          // set socket
+          setLive(origLive);
+
+          // turn on an stream
+          origLive.on(LiveTranscriptionEvents.Open, () => {
+            mediaRecorder.addEventListener('dataavailable', (event) => {
               if (event.data.size > 0) {
-                console.log('state', live.getReadyState());
-                live.send(event.data); 
+                if (origLive.getReadyState() === 1) {// stream when socket is open
+                  origLive.send(event.data);
+                }
               }
             })
-            mediaRecorder.start(1000);
+            mediaRecorder.start(250);// data avail every 1/4 second
           });
-          live.on(LiveTranscriptionEvents.Transcript, (data) => {
-            console.log('recieved',data.channel.alternatives[0].transcript);
+
+          // turn on and recieve
+          origLive.on(LiveTranscriptionEvents.Transcript, (data) => {
+            let results = data.channel.alternatives[0].transcript;
+            if (results.length > 0) {
+              console.log('recieved', results);
+              setTranscription(prev => prev == "" ? results : prev + " " + results);
+            }
           });
-        })
 
-
-      live.keepAlive();
+        });
     } catch (error) {
       console.error('Error accessing microphone:', error);
     }
   };
-  const stopRecording = () => {
-    LiveTranscriptionEvents.Close();
-    setIsRecording(false);
-  };
 
-  //
+  // close socket and set isRecording state
+  const stopRecording = () => {
+    setIsRecording(false);
+    live.finish();
+
+    let mutateString = transcription.replace(/ /g, "+");
+    console.log('recieved mutated', mutateString);
+    if (mutateString === "") {
+      mutateString = prevtranscription;
+    }
+    setSite("https://www.google.com/search?igu=1&ei=&q=" + mutateString);
+    setPrevtranscription(mutateString);
+    setTranscription("");
+    close();
+  };
 
   useEffect(() => {
     // Before we can use FaceLandmarker class, we must wait for it to finish loading.
@@ -83,9 +121,8 @@ function App() {
       });
       setFaceLandmarker(landmarker);
     }
-
-    // turn off for not face tracking
-    // createFaceLandmarker();
+    // turn face tracking
+    createFaceLandmarker();
 
   }, []);
 
@@ -103,17 +140,11 @@ function App() {
 
     if (webcamRunning === true) {
       webcamRunning = false;
-      // enableWebcamButton.innerText = "ENABLE PREDICTIONS";
     } else {
       webcamRunning = true;
-      // enableWebcamButton.innerText = "DISABLE PREDICTIONS";
     }
 
-    const constraints = {
-      video: true
-    };
-
-    navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
+    navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
       videoRef.current.srcObject = stream;
       videoRef.current.addEventListener("loadeddata", predictWebcam);
     });
@@ -136,6 +167,13 @@ function App() {
     let startTimeMs = performance.now();
     const results = await faceLandmarker.detectForVideo(videoRef.current, startTimeMs);
 
+    setDBlendShapes(results.faceBlendshapes);
+
+    if (webcamRunning === true) {
+      window.requestAnimationFrame(predictWebcam);
+    }
+
+    // draw land marks
     if (results.faceLandmarks) {
       const ctx = canvasRef.current.getContext("2d");
       const drawingUtils = new DrawingUtils(ctx);
@@ -186,73 +224,71 @@ function App() {
           { color: "#30FF30" }
         );
       }
-      drawBlendShapes(canvasRef.current, results.faceBlendshapes);
-    }
-
-    if (webcamRunning === true) {
-      window.requestAnimationFrame(predictWebcam);
     }
   };
 
-  const drawBlendShapes = (el, blendShapes) => {
-    if (!blendShapes.length) {
-      return;
-    }
 
-    let htmlMaker = "";
-    blendShapes[0].categories.map((shape) => {
-      htmlMaker += `
-      <li class="blend-shapes-item">
-      <p class="blend-shapes-label">${shape.displayName || shape.categoryName}</p>
-      <p class="blend-shapes-value">${(+shape.score).toFixed(4)}</p>
-      </li>
-      `;
-    });
-
-    setDBlendShapes(blendShapes);
-  };
-
-  const [lastActionTime, setLastActionTime] = useState(0);
-
-
-  // const downArrowEvent = new KeyboardEvent('keydown', {
-  //   key: 'ArrowDown',
-  //   code: 'ArrowDown',
-  //   keyCode: 40,
-  //   which: 40,
-  // });
-
-  const dispatchDownArrowEvent = () => {
+  const scrollDownMed = () => {
     const currentTime = Math.floor(new Date().getTime());
     setLastActionTime(currentTime);
-    // document.dispatchEvent(downArrowEvent);
-    console.log("down");
-    scrollDown();
-    // const iframe = document.getElementById('if1'); // Replace 'if1' with the actual ID of your iframe
-    // iframe.contents().scrollTop(438);
-    // iframe.contentWindow.document.dispatchEvent(downArrowEvent);
-    // iframe.contentWindow.document.scrollTop(123);// workd but denied
+    // console.log("down");
+    window.scrollBy(0, 100);
   };
 
-  const scrollDown = () => {
-    window.scrollBy(0, 100); // Adjust the value based on how much you want to scroll down
-  };
-
-  const dispatchUpArrowEvent = () => {
+  const scrollDownHigh = () => {
     const currentTime = Math.floor(new Date().getTime());
     setLastActionTime(currentTime);
-    // document.dispatchEvent(downArrowEvent);
-    console.log("up");
-    scrollUp();
+    // console.log("down");
+    window.scrollBy(0, 300);
   };
 
-
-  const scrollUp = () => {
+  const scrollUpLow = () => {
+    const currentTime = Math.floor(new Date().getTime());
+    setLastActionTime(currentTime);
+    // console.log("up");
+    window.scrollBy(0, -50);
+  };
+  const scrollUpMed = () => {
+    const currentTime = Math.floor(new Date().getTime());
+    setLastActionTime(currentTime);
+    // console.log("up");
     window.scrollBy(0, -100);
   };
+  const scrollUpHigh = () => {
+    const currentTime = Math.floor(new Date().getTime());
+    setLastActionTime(currentTime);
+    // console.log("up");
+    window.scrollBy(0, -300);
+  };
+
+  const scroll = (speed) => {
+    const currentTime = Math.floor(new Date().getTime());
+    setLastActionTime(currentTime);
+    // console.log("up");
+    window.scrollBy(0, speed);
+  }
+  const scrollU = (speed) => {
+    const currentTime = Math.floor(new Date().getTime());
+    setLastActionTime(currentTime);
+    // console.log("up");
+    console.log("value", (speed));
+    console.log("down Speed", (speed * 2 * 100));
+    let newSpeed;
+    if (speed > 0) {
+
+      let temp = speed * 2 * 100;
+      newSpeed = 100 + ((temp - 100) * 6)
+    } else {
+
+      let temp = speed * 2 * 100;
+      newSpeed = -100 + ((temp + 100))
+    }
+
+    window.scrollBy(0, newSpeed);
+  }
 
   const render = () => {
-    if (dBlendShapes != null) {
+    if (dBlendShapes?.[0]?.categories) {
       // const data = dBlendShapes[0].categories.map((shape) => (
       //   <div key={shape.displayName || shape.categoryName}>
       //     <li className="blend-shapes-item">
@@ -264,119 +300,106 @@ function App() {
       //   </div>
       // ));
 
-
-      const data = () => {
-
-        return (
-          <div>
-            <li>
-              <p>{dBlendShapes[0].categories[11].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[11].score) * 100}% - 120px)` }} /> </p>
-              <p>{dBlendShapes[0].categories[11].score}</p>
-              {Math.floor(new Date().getTime()) > (lastActionTime + 1000) && dBlendShapes[0].categories[11].score > 0.4 ? dispatchDownArrowEvent() : ""}
-            </li>
-            <li>
-              <p>{dBlendShapes[0].categories[12].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[12].score) * 100}% - 120px)` }} /> </p>
-              <p>{dBlendShapes[0].categories[12].score}</p>
-            </li>
-            <li>
-              <p>{dBlendShapes[0].categories[17].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[17].score) * 100}% )` }} /> </p>
-              <p>{dBlendShapes[0].categories[17].score}</p>
-              {Math.floor(new Date().getTime()) > (lastActionTime + 1000) && dBlendShapes[0].categories[17].score > 0.04 ? dispatchUpArrowEvent() : ""}
-            </li>
-            <li>
-              <p>{dBlendShapes[0].categories[18].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[18].score) * 100}% )` }} /> </p>
-              <p>{dBlendShapes[0].categories[18].score}</p>
-            </li>
-          </div>
-        )
-      }
-      // console.log(dBlendShapes[0].categories[11].categoryName);
-      // console.log(dBlendShapes[0].categories[12].categoryName);
       return (
         <div>
-          {data()}
+          <li>{/* Left Eye Look Down*/}
+            <p>{dBlendShapes[0].categories[11].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[11].score) * 100}% - 120px)` }} /> </p>
+            <p>{dBlendShapes[0].categories[11].score}</p>
+            {Math.floor(new Date().getTime()) > (lastActionTime + 250) && dBlendShapes[0].categories[11].score > 0.5 ? scrollU(dBlendShapes[0].categories[11].score) : null}
+          </li>
+          <li>{/* Right Eye Look Down*/}
+            <p>{dBlendShapes[0].categories[12].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[12].score) * 100}% - 120px)` }} /> </p>
+            <p>{dBlendShapes[0].categories[12].score}</p>
+          </li>
+          <li>{/* Left Eye Look Up*/}
+            <p>{dBlendShapes[0].categories[17].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[17].score) * 100}% )` }} /> </p>
+            <p>{dBlendShapes[0].categories[17].score}</p>
+            {Math.floor(new Date().getTime()) > (lastActionTime + 250) && dBlendShapes[0].categories[17].score > 0.1 ? scrollU(-(dBlendShapes[0].categories[17].score * 10)) : null}
+          </li>
+          <li>{/* Right Eye Look up*/}
+            <p>{dBlendShapes[0].categories[18].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[18].score) * 100}% )` }} /> </p>
+            <p>{dBlendShapes[0].categories[18].score}</p>
+          </li>
+          <li>{/* In Left */}
+            <p>{dBlendShapes[0].categories[13].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[13].score) * 100}% )` }} /> </p>
+            <p>{dBlendShapes[0].categories[13].score}</p>
+          </li>
+          <li>{/* In Right */}
+            <p>{dBlendShapes[0].categories[14].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[14].score) * 100}% )` }} /> </p>
+            <p>{dBlendShapes[0].categories[14].score}</p>
+          </li>
+          <li>{/* Out Left */}
+            <p>{dBlendShapes[0].categories[15].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[15].score) * 100}% )` }} /> </p>
+            <p>{dBlendShapes[0].categories[15].score}</p>
+            {isRecording === false && dBlendShapes[0].categories[15].score > 0.6 ? startRecording() : null}
+          </li>
+          <li>{/* Out Right */}
+            <p>{dBlendShapes[0].categories[16].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[16].score) * 100}% )` }} /> </p>
+            <p>{dBlendShapes[0].categories[16].score}</p>
+            {isRecording === true && dBlendShapes[0].categories[16].score > 0.3 ? stopRecording() : null}
+          </li>
         </div>
-      );
+      )
     }
   };
 
-  const opts = {
-    height: '315',
-    width: '560',
-    playerVars: {
-      // Options for YouTube Player API
-      autoplay: 1,  // Auto-play the video
-      mute: 1,  // Auto-play the video
-    },
-  };
-  const onReady = (event) => {
-    // Access to player in all event handlers via event.target
-    const player = event.target;
-
-    // Unmute the video
-    player.unMute();
-
-    // Play the video after unmuting
-    player.playVideo();
-
-  };
-
-  const play = (event) => {
-    const player = event.target;
-    player.playVideo();
-  }
-
   return (
     <div>
-      <div>
-        <h1>Speech Recognition Test</h1>
-        <button onClick={startRecording} disabled={isRecording}>
-          Start Recording
-        </button>
-        <button onClick={stopRecording} disabled={!isRecording}>
-          Stop Recording
-        </button>
-        <div>
-          <h2>Transcription Output</h2>
-          <pre>{transcription}</pre>
-        </div>
-        <audio ref={audioRef} controls />
+      <div>{start && <Instructions />}
       </div>
-      <h1>Face landmark detection using the MediaPipe FaceLandmarker task</h1>
-
-      <section id="demos" className="invisible" style={{ display: 'block' }}>
-
-        <div className="blend-shapes">
-          <ul className="blend-shapes-list" id="image-blend-shapes"></ul>
+      <div>
+        {modalOpen && <Modal data={transcription} state={start} />}
+      </div>
+      <div className='debugStuff' style={{ display: 'display' }}>
+        <div className='speach'>
+          <h1>Speech Recognition Test</h1>
+          <button onClick={startRecording} disabled={isRecording}>
+            Start Recording
+          </button>
+          <button onClick={stopRecording} disabled={!isRecording}>
+            Stop Recording
+          </button>
+          <div>
+            <h2>Transcription Output</h2>
+            <pre>{transcription}</pre>
+          </div>
         </div>
+        <section id="demos" className="invisible" style={{ display: 'block' }}>
+          <h1>Face landmark detection using the MediaPipe FaceLandmarker task</h1>
 
-        <p>Hold your face in front of your webcam to get real-time face landmarker detection.</p>
-        <button id="webcamButton" className="mdc-button mdc-button--raised" onClick={enableCam}>
-          <span className="mdc-button__ripple"></span>
-          <span className="mdc-button__label">{webcamRunning ? "DISABLE PREDICTIONS" : "ENABLE WEBCAM"}</span>
-        </button>
+          <div className="blend-shapes">
+            <ul className="blend-shapes-list" id="image-blend-shapes"></ul>
+          </div>
 
-        <div style={{ position: "relative" }}>
-          <video id="webcam" style={{ position: "reletative", left: "0px", top: "0px" }} ref={videoRef} autoPlay playsInline></video>
-          <canvas className="output_canvas" id="output_canvas" style={{ position: "absolute", left: "0px", top: "0px" }} ref={canvasRef}></canvas>
-        </div>
-        <div className="blend-shapes">
-          <ul className="blend-shapes-list" id="video-blend-shapes">
-            {render()}
-          </ul>
-        </div>
-      </section>
+          <p>Hold your face in front of your webcam to get real-time face landmarker detection.</p>
+   
+          <span>{webcamRunning ? "DISABLE PREDICTIONS" : "ENABLED WEBCAM"}</span>
+
+          <div style={{ position: "relative" }}>
+            <video id="webcam" style={{ position: "reletative", left: "0px", top: "0px" }} ref={videoRef} autoPlay playsInline></video>
+            <canvas className="output_canvas" id="output_canvas" style={{ position: "absolute", left: "0px", top: "0px" }} ref={canvasRef}></canvas>
+          </div>
+          <div className="blend-shapes">
+            <ul className="blend-shapes-list" id="video-blend-shapes">
+              {render()}
+            </ul>
+          </div>
+        </section>
+      </div>
+
+
 
       <iframe
         id="if1"
         width="100%"
         allowScriptAccess="always"
         height="1000px"
-        src="https://www.google.com/search?igu=1"
+        src={site}
         frameBorder="0"
         allowFullScreen
         scrolling="no"
         style={{
+          display: !modalOpen ? "block" : "none",
           position: 'reletative',
           top: 0,
           left: 0,
@@ -389,10 +412,13 @@ function App() {
           padding: 0,
           zIndex: 999999,
         }}
-      ></iframe>np
+      ></iframe>
     </div>
   );
 }
+
+
+
 // https://www.google.com/search?igu=1&ei=&q=YOUR+WORD
 // https://www.google.com/search?igu=1
 

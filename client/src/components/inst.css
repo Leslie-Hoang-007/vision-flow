@@ -1,0 +1,74 @@
+.inst {
+    position: absolute;
+    height: 100%;
+    width: 100%;
+}
+
+.arrow {
+    font-size: 2em;
+    cursor: pointer;
+}
+
+.left-arrow,
+.right-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 50px;
+    cursor: pointer;
+}
+
+.left-arrow {
+    left: 1rem;
+}
+
+.right-arrow {
+    right: 1rem;
+}
+
+.up-arrow,
+.down-arrow {
+    position: absolute;
+    width: 100%;
+    text-align: center;
+    font-size: 50px;
+    cursor: pointer;
+}
+
+.up-arrow {
+    top: 2rem;
+}
+
+.down-arrow {
+    bottom: 2rem;
+}
+
+
+.instruction-text {
+    position: absolute;
+    font-size: 25px;
+}
+
+.left-text {
+    left: 8rem;
+    top: 50%;
+    transform: translateY(-30%);
+}
+
+.right-text {
+    right: 8rem;
+    top: 50%;
+    transform: translateY(-30%);
+}
+
+.up-text {
+    top: 8rem;
+    width: 100%;
+    text-align: center;
+}
+
+.down-text {
+    bottom: 8rem;
+    width: 100%;
+    text-align: center;
+}

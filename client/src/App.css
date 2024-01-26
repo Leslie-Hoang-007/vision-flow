@@ -13,6 +13,7 @@
   }
 }
 
+
 .App-header {
   background-color: #282c34;
   min-height: 100vh;
@@ -74,3 +75,34 @@ li {
   height: 100%;
 }
 
+
+
+.modal {
+  position: fixed;
+  
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  margin: auto;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: green;
+}
+
+.modal-body {
+  background-color: #fff;
+  overflow-y: auto;
+  padding: 1.25rem;
+  width: 100%;
+}
+
+.loading-page {
+  position: fixed;
+  text-align: center;
+  width: 100%;
+  padding: 2rem;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); /* Adjust the values as needed */
+}
