@@ -17,7 +17,7 @@ cd client
 npm install
 ```
 Get a API, signup for a free Deepgram account with $220 credit [Here.](https://deepgram.com/)
-In the App.js file line 42 reaplace `KEY` with a Deepgram API Key. Then run.
+In the `App.js` file line 42 reaplace `KEY` with a Deepgram API Key. Then run.
 ```
 npm start
 ```
