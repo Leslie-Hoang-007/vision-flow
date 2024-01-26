@@ -155,7 +155,7 @@ li {
   text-transform: inherit;
   border-radius: 5px;
   font-size: 25px;
-  color: #5f6368;
+  color: #000000;
   background-color: rgba(230, 230, 230, 0.95);
   box-shadow: 0 0 0 transparent;
   animation: blueShadow 1s infinite alternate; 

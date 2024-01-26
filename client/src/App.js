@@ -385,7 +385,7 @@ function App() {
             <li>{/* Out Right */}
               <p>{dBlendShapes[0].categories[16].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[16].score) * 100}% )` }} /> </p>
               <p>{dBlendShapes[0].categories[16].score}</p>
-              {isRecording === true && dBlendShapes[0].categories[16].score > right ? stopRecording() : null}
+              {doneSetup === true && isRecording === true && dBlendShapes[0].categories[16].score > right ? stopRecording() : null}
             </li>
           </div>)
       }
@@ -452,7 +452,7 @@ function App() {
         {/* SEARCH PAGE */}
         <div className="searchText" style={{ display: !calibrate ? "block" : "none" }} >
           {/* Calibrate Button */}
-          <button className="calibrateButton" onClick={() => setCalibrate(true)} style={{ display: !doneSetup ? 'block' : 'none' }}>Press to Calibrate <br /><br />or<br /> <br />Double Blink for Default Calibration</button>
+          <button className="calibrateButton" onClick={() => setCalibrate(true)} style={{ display: !doneSetup ? 'block' : 'none' }}>Blink SLOWLY for Default Calibration<br /><br />or<br /><br />Press to Calibrate</button>
           
           {/* SEARCH MODAL */}
           <div>{start && doneSetup && <Instructions />}
