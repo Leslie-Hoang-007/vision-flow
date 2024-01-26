@@ -14,9 +14,8 @@
 }
 
 .active {
-    animation: blueShadow .9s infinite alternate; /* Alternate between transparent and blue every 1 second */
+    animation: blueShadow 1s infinite alternate; /* Alternate between transparent and blue every 1 second */
 }
-
 
 
 @keyframes blueShadow {
@@ -68,7 +67,6 @@
     display: flex;
     flex-direction: column;
 }
-
 
 
 .home__body {

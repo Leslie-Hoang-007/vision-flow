@@ -1,6 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { FaceLandmarker, FilesetResolver, DrawingUtils } from "@mediapipe/tasks-vision";
-import YouTube from 'react-youtube';
 import './App.css';
 import { createClient } from "@deepgram/sdk";
 import { LiveTranscriptionEvents } from "@deepgram/sdk";
@@ -8,37 +7,46 @@ import Modal from './components/modal';
 import Instructions from './components/instructions';
 
 function App() {
-  
 
   // VIDEO MAPPING
   const [faceLandmarker, setFaceLandmarker] = useState(null);
   const [dBlendShapes, setDBlendShapes] = useState(null);
   let runningMode = "IMAGE";
-  let enableWebcamButton;
   let webcamRunning = false;
   const videoWidth = 480;
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const [transcription, setTranscription] = useState('');
+  const [site, setSite] = useState("https://www.google.com/search?igu=1");
+  const [prevtranscription, setPrevtranscription] = useState('Search+for+something!'); // default search
+  const [lastActionTime, setLastActionTime] = useState(0);// last scroll
 
+  // default calibration
+  const [up, setUp] = useState(0.1);
+  const [down, setDown] = useState(0.5);
+  const [left, setLeft] = useState(0.6);
+  const [right, setRight] = useState(0.3);
+  
+  // Page State
+  const [loading, setLoading] = useState(true);
+  const [calibrate, setCalibrate] = useState(true);
+  const [dirCal, setdirCal] = useState('Up');
+  const [start, setStart] = useState(true);
+  
   // Audio Transcription 
   const [live, setLive] = useState(null);
-  // deepgramstuff
-  const [transcription, setTranscription] = useState('');
-  const [prevtranscription, setPrevtranscription] = useState('Search+for+something!');
   const [isRecording, setIsRecording] = useState(false);
-  const deepgram = createClient("KEY");
-  // const deepgram = createClient("3bd85db38a54e7a9266947704068dc3e8da53bb3");
 
+  // const deepgram = createClient("KEY");
+  const deepgram = createClient(process.env.REACT_APP_DEEPGRAM_KEY);
 
-
-  const [site, setSite] = useState("https://www.google.com/search?igu=1");
-  const [lastActionTime, setLastActionTime] = useState(0);
+  // Modial properties
   const [modalOpen, setModalOpen] = useState(true);
-  const [start, setStart] = useState(true);
-
   const close = () => setModalOpen(false);
   const open = () => setModalOpen(true);
 
+
+  // Start Recording Voice and ask for permission
   const startRecording = async () => {
     setIsRecording(true);
     setStart(false);
@@ -85,14 +93,17 @@ function App() {
         });
     } catch (error) {
       console.error('Error accessing microphone:', error);
+      setLoading(true);
     }
   };
 
-  // close socket and set isRecording state
+  // Stops voice recording and changes iframe src
   const stopRecording = () => {
     setIsRecording(false);
-    live.finish();
-
+    if (live && live.getReadyState() === 1) {
+      live.finish();
+      setLive(null);
+    }
     let mutateString = transcription.replace(/ /g, "+");
     console.log('recieved mutated', mutateString);
     if (mutateString === "") {
@@ -104,8 +115,8 @@ function App() {
     close();
   };
 
+
   useEffect(() => {
-    // Before we can use FaceLandmarker class, we must wait for it to finish loading.
     async function createFaceLandmarker() {
       const filesetResolver = await FilesetResolver.forVisionTasks(
         "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
@@ -121,36 +132,49 @@ function App() {
       });
       setFaceLandmarker(landmarker);
     }
-    // turn face tracking
-    createFaceLandmarker();
 
+    // turn on landmarks
+    createFaceLandmarker();
   }, []);
 
+  // enables cam when landmarks is loaded
   useEffect(() => {
     if (faceLandmarker) {
       enableCam(); // Invoke enableCam right away
+      setLoading(false);
     }
   }, [faceLandmarker]);
 
-  const enableCam = async (event) => {
+
+  // Enables Cam and videoRef
+  const enableCam = async () => {
     if (!faceLandmarker) {
       console.log("Wait! faceLandmarker not loaded yet.");
       return;
     }
 
+    // Retrieve Video Data
+    try {
+      navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
+        videoRef.current.srcObject = stream;
+        videoRef.current.addEventListener("loadeddata", predictWebcam);
+      });
+    } catch (error) {
+      console.error('Error accessing camera and microphone:', error);
+    }
+
+    // TOGGLE RUNNING
     if (webcamRunning === true) {
       webcamRunning = false;
     } else {
       webcamRunning = true;
     }
-
-    navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
-      videoRef.current.srcObject = stream;
-      videoRef.current.addEventListener("loadeddata", predictWebcam);
-    });
   };
 
   const predictWebcam = async () => {
+
+
+    // Set Output Video + Mask Data
     const radio = videoRef.current.videoHeight / videoRef.current.videoWidth;
     videoRef.current.style.width = videoWidth + "px";
     videoRef.current.style.height = videoWidth * radio + "px";
@@ -159,21 +183,25 @@ function App() {
     canvasRef.current.width = videoRef.current.videoWidth;
     canvasRef.current.height = videoRef.current.videoHeight;
 
+    // Set Running Mode
     if (runningMode === "IMAGE") {
       runningMode = "VIDEO";
       await faceLandmarker.setOptions({ runningMode: runningMode });
     }
 
+    // UPDATE RESULTS
     let startTimeMs = performance.now();
     const results = await faceLandmarker.detectForVideo(videoRef.current, startTimeMs);
 
+    // SET FACIAL DATA FOR SCROLLING
     setDBlendShapes(results.faceBlendshapes);
 
+    // Resuest animation
     if (webcamRunning === true) {
       window.requestAnimationFrame(predictWebcam);
     }
 
-    // draw land marks
+    // Draw Landmarks/FaceMask
     if (results.faceLandmarks) {
       const ctx = canvasRef.current.getContext("2d");
       const drawingUtils = new DrawingUtils(ctx);
@@ -228,67 +256,26 @@ function App() {
   };
 
 
-  const scrollDownMed = () => {
-    const currentTime = Math.floor(new Date().getTime());
-    setLastActionTime(currentTime);
-    // console.log("down");
-    window.scrollBy(0, 100);
-  };
 
-  const scrollDownHigh = () => {
-    const currentTime = Math.floor(new Date().getTime());
-    setLastActionTime(currentTime);
-    // console.log("down");
-    window.scrollBy(0, 300);
-  };
-
-  const scrollUpLow = () => {
-    const currentTime = Math.floor(new Date().getTime());
-    setLastActionTime(currentTime);
-    // console.log("up");
-    window.scrollBy(0, -50);
-  };
-  const scrollUpMed = () => {
-    const currentTime = Math.floor(new Date().getTime());
-    setLastActionTime(currentTime);
-    // console.log("up");
-    window.scrollBy(0, -100);
-  };
-  const scrollUpHigh = () => {
-    const currentTime = Math.floor(new Date().getTime());
-    setLastActionTime(currentTime);
-    // console.log("up");
-    window.scrollBy(0, -300);
-  };
-
-  const scroll = (speed) => {
-    const currentTime = Math.floor(new Date().getTime());
-    setLastActionTime(currentTime);
-    // console.log("up");
-    window.scrollBy(0, speed);
-  }
   const scrollU = (speed) => {
     const currentTime = Math.floor(new Date().getTime());
     setLastActionTime(currentTime);
-    // console.log("up");
-    console.log("value", (speed));
-    console.log("down Speed", (speed * 2 * 100));
+    console.log("value", (speed));// IMPLEMNT FASTER SCROLLING LATTER
     let newSpeed;
     if (speed > 0) {
-
-      let temp = speed * 2 * 100;
-      newSpeed = 100 + ((temp - 100) * 6)
+      newSpeed = 100// SCROLL DOWN
     } else {
-
-      let temp = speed * 2 * 100;
-      newSpeed = -100 + ((temp + 100))
+      newSpeed = -100// SCROLL UP
     }
-
     window.scrollBy(0, newSpeed);
   }
 
+
+  // RENDER DEGUGGIN DATA / AND HAS JSX SCROLLING LOGIC
   const render = () => {
     if (dBlendShapes?.[0]?.categories) {
+
+      // PRINTING ALL BLENDEDSHAPES/LANDMARKDATA
       // const data = dBlendShapes[0].categories.map((shape) => (
       //   <div key={shape.displayName || shape.categoryName}>
       //     <li className="blend-shapes-item">
@@ -300,12 +287,14 @@ function App() {
       //   </div>
       // ));
 
+
+      // REVELENT DATA FOR BASIC OPPERATION
       return (
         <div>
           <li>{/* Left Eye Look Down*/}
             <p>{dBlendShapes[0].categories[11].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[11].score) * 100}% - 120px)` }} /> </p>
             <p>{dBlendShapes[0].categories[11].score}</p>
-            {Math.floor(new Date().getTime()) > (lastActionTime + 250) && dBlendShapes[0].categories[11].score > 0.5 ? scrollU(dBlendShapes[0].categories[11].score) : null}
+            {Math.floor(new Date().getTime()) > (lastActionTime + 250) && dBlendShapes[0].categories[11].score > down ? scrollU(dBlendShapes[0].categories[11].score) : null}
           </li>
           <li>{/* Right Eye Look Down*/}
             <p>{dBlendShapes[0].categories[12].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[12].score) * 100}% - 120px)` }} /> </p>
@@ -314,7 +303,7 @@ function App() {
           <li>{/* Left Eye Look Up*/}
             <p>{dBlendShapes[0].categories[17].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[17].score) * 100}% )` }} /> </p>
             <p>{dBlendShapes[0].categories[17].score}</p>
-            {Math.floor(new Date().getTime()) > (lastActionTime + 250) && dBlendShapes[0].categories[17].score > 0.1 ? scrollU(-(dBlendShapes[0].categories[17].score * 10)) : null}
+            {Math.floor(new Date().getTime()) > (lastActionTime + 250) && dBlendShapes[0].categories[17].score > up ? scrollU(-(dBlendShapes[0].categories[17].score * 10)) : null}
           </li>
           <li>{/* Right Eye Look up*/}
             <p>{dBlendShapes[0].categories[18].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[18].score) * 100}% )` }} /> </p>
@@ -331,26 +320,100 @@ function App() {
           <li>{/* Out Left */}
             <p>{dBlendShapes[0].categories[15].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[15].score) * 100}% )` }} /> </p>
             <p>{dBlendShapes[0].categories[15].score}</p>
-            {isRecording === false && dBlendShapes[0].categories[15].score > 0.6 ? startRecording() : null}
+            {isRecording === false && dBlendShapes[0].categories[15].score > left ? startRecording() : null}
           </li>
           <li>{/* Out Right */}
             <p>{dBlendShapes[0].categories[16].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[16].score) * 100}% )` }} /> </p>
             <p>{dBlendShapes[0].categories[16].score}</p>
-            {isRecording === true && dBlendShapes[0].categories[16].score > 0.3 ? stopRecording() : null}
+            {isRecording === true && dBlendShapes[0].categories[16].score > right ? stopRecording() : null}
           </li>
         </div>
       )
     }
   };
 
+
+  // HANDLE CALIBRATION PROTOCOL
+  const calStat = (x) => {
+    if (dBlendShapes?.[0]?.categories) {
+      if (x == 'up') {
+        console.log("Up Calibrate", dBlendShapes[0].categories[17].score)
+        setUp(dBlendShapes[0].categories[17].score * 1.4);
+        setdirCal('Down');
+      } else if (x == 'down') {
+        console.log("Down Calibrate", dBlendShapes[0].categories[11].score)
+        setDown(dBlendShapes[0].categories[11].score * 1.4);
+        setdirCal('Left');
+      } else if (x == 'left') {
+        console.log("Left Calibrate", dBlendShapes[0].categories[15].score)
+        setLeft(dBlendShapes[0].categories[15].score * 1.4);
+        setdirCal('Right');
+      } else {
+        console.log("Right Calibrate", dBlendShapes[0].categories[16].score)
+        setRight(dBlendShapes[0].categories[16].score * 1.4);
+        setCalibrate(false);
+      }
+    }
+  }
+
+
   return (
     <div>
-      <div>{start && <Instructions />}
+
+      {/* LOADING PAGE*/}
+      <div className='loading-page' style={{ display: loading ? "block" : "none" }} >
+        <h1>Loading...</h1>
+        <h1>Please allow access to camera and microphone and refresh page.</h1>
       </div>
-      <div>
-        {modalOpen && <Modal data={transcription} state={start} />}
+
+      {/* CALIBRATION PAGE*/}
+      <div className="cal-container" style={{ display: calibrate ? "block" : "none" }} >
+        {dirCal === 'Up' && <button className="cal upCal" onClick={() => calStat('up')}>Up claibrate</button>}
+        {dirCal === 'Down' && <button className="cal downCal" onClick={() => calStat('down')}>Down claibrate</button>}
+        {dirCal === 'Left' && <button className="cal leftCal" onClick={() => calStat('left')}>Left claibrate</button>}
+        {dirCal === 'Right' && <button className="cal rightCal" onClick={() => calStat('right')}>Right claibrate</button>}
+        <p>Look at the {dirCal} Button and Press to Calibrate</p>
       </div>
-      <div className='debugStuff' style={{ display: 'display' }}>
+
+
+
+      {/* MAIN PAGE */}
+      <div style={{ display: !calibrate ? "block" : "none" }} >
+        <div>{start && <Instructions />}
+        </div>
+        <div>
+          {modalOpen && <Modal data={transcription} state={start} />}
+        </div>
+        <iframe
+          id="if1"
+          width="100%"
+          allowScriptAccess="always"
+          height="1000px"
+          src={site}
+          frameBorder="0"
+          allowFullScreen
+          scrolling="no"
+          style={{
+            display: !modalOpen ? "block" : "none",
+            position: 'reletative',
+            top: 0,
+            left: 0,
+            bottom: 0,
+            right: 0,
+            width: '100%',
+            height: '5000px',
+            border: 'none',
+            margin: 0,
+            padding: 0,
+            zIndex: 999999,
+          }}
+        ></iframe>
+
+      </div>
+
+
+      {/* DEGUB DATA*/}
+      <div className='debugStuff' style={{ display: 'none' }}>
         <div className='speach'>
           <h1>Speech Recognition Test</h1>
           <button onClick={startRecording} disabled={isRecording}>
@@ -372,8 +435,8 @@ function App() {
           </div>
 
           <p>Hold your face in front of your webcam to get real-time face landmarker detection.</p>
-   
-          <span>{webcamRunning ? "DISABLE PREDICTIONS" : "ENABLED WEBCAM"}</span>
+
+          <span>{webcamRunning ? "DISABLE PREDICTIONS" : "ENABLE WEBCAM"}</span>
 
           <div style={{ position: "relative" }}>
             <video id="webcam" style={{ position: "reletative", left: "0px", top: "0px" }} ref={videoRef} autoPlay playsInline></video>
@@ -387,75 +450,8 @@ function App() {
         </section>
       </div>
 
-
-
-      <iframe
-        id="if1"
-        width="100%"
-        allowScriptAccess="always"
-        height="1000px"
-        src={site}
-        frameBorder="0"
-        allowFullScreen
-        scrolling="no"
-        style={{
-          display: !modalOpen ? "block" : "none",
-          position: 'reletative',
-          top: 0,
-          left: 0,
-          bottom: 0,
-          right: 0,
-          width: '100%',
-          height: '5000px',
-          border: 'none',
-          margin: 0,
-          padding: 0,
-          zIndex: 999999,
-        }}
-      ></iframe>
     </div>
   );
 }
-
-
-
-// https://www.google.com/search?igu=1&ei=&q=YOUR+WORD
-// https://www.google.com/search?igu=1
-
-// SHORTS
-{/* <iframe width="315" height="560"
-src="https://www.youtube.com/embed/QPOLrbKI5oQ"
-title="YouTube video player" frameborder="0"
-allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture;web-share"
-allowfullscreen>
-</iframe> */}
-
-
-{/* <iframe
-id="if1"
-width="100%"
-allowScriptAccess="always"
-height="1000px"
-src="https://www.google.com/search?igu=1"
-frameBorder="0"
-allowFullScreen
-scrolling="no"
-style={{
-  position: 'absolute',
-  top: 0,
-  left: 0,
-  bottom: 0,
-  right: 0,
-  width: '100%',
-  height: '5000px',
-  border: 'none',
-  margin: 0,
-  padding: 0,
-  zIndex: 999999,
-}}
-></iframe> */}
-
-
-{/* <YouTube videoId="QPOLrbKI5oQ" opts={opts} onReady={onReady} onPause={play}/> */ }
 
 export default App;
