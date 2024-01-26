@@ -22,7 +22,7 @@ function App() {
   const [lastActionTime, setLastActionTime] = useState(0);// last scroll
 
   // default calibration
-  const [up, setUp] = useState(0.05);
+  const [up, setUp] = useState(0.065);
   const [down, setDown] = useState(0.5);
   const [left, setLeft] = useState(0.6);
   const [right, setRight] = useState(0.3);
@@ -467,7 +467,6 @@ function App() {
             id="if1"
             width="100%"
             allowScriptAccess="always"
-            height="1000px"
             src={site}
             frameBorder="0"
             allowFullScreen
