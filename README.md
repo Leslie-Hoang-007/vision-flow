@@ -1,5 +1,5 @@
 # Vision Flow
-I developed a hands-free searching engine leveraging real-time AI assisted technology. The application leverages Mediapip library and Deepgram SDK for facial landmark detection to and speak analytics respectively. Enabling users to navigate with just their eyes and voice. This project features dynamic calibration, blink detection, scrolling based on facial gestures. 
+A hands-free searching engine leveraging real-time AI assisted technology. The application leverages Mediapip library and Deepgram SDK for facial landmark detection to and speak analytics respectively. Enabling users to navigate with just their eyes and voice. This project features dynamic calibration, blink detection, scrolling based on facial gestures. 
 
 ## What I Learned
 - Integration of AI Computer Vision Library and AI-Powered Speech Analytics Library
