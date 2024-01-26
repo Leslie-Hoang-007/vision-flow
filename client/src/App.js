@@ -8,7 +8,7 @@ import Instructions from './components/instructions';
 
 function App() {
 
-  // VIDEO MAPPING
+  // Video Landmarks Mapping
   const [faceLandmarker, setFaceLandmarker] = useState(null);
   const [dBlendShapes, setDBlendShapes] = useState(null);
   let runningMode = "IMAGE";
@@ -28,12 +28,12 @@ function App() {
   const [right, setRight] = useState(0.3);
 
   // Page State
-  const [loading, setLoading] = useState(true);
-  const [calibrate, setCalibrate] = useState(false);
-  const [dirCal, setdirCal] = useState('Up');
-  const [start, setStart] = useState(true);
-  const [doneSetup, setDoneSetup] = useState(false);
-  const [searchPrompt, setSearchPrompt] = useState(null);
+  const [loading, setLoading] = useState(true);// is loding?
+  const [calibrate, setCalibrate] = useState(false);// turn on calibrate page
+  const [dirCal, setdirCal] = useState('Up');// current direction to calibrate
+  const [start, setStart] = useState(true);// toggle active to glow ehrn false
+  const [doneSetup, setDoneSetup] = useState(false);// finished calibrating
+  const [searchPrompt, setSearchPrompt] = useState(null);// text to direct used to speak on search page
 
   // Audio Transcription 
   const [live, setLive] = useState(null);
@@ -42,7 +42,7 @@ function App() {
   // const deepgram = createClient("KEY");
   const deepgram = createClient(process.env.REACT_APP_DEEPGRAM_KEY);
 
-  // Modial properties
+  // Search modual properties
   const [modalOpen, setModalOpen] = useState(true);
   const close = () => setModalOpen(false);
   const open = () => setModalOpen(true);
