@@ -15,10 +15,7 @@ function Modal({ data, state }) {
                 <input value={data} />
                 <img src="https://cdn1.iconfinder.com/data/icons/google-s-logo/150/Google_Icons-25-1024.png" style={{ height: '2rem' }} />
               </div>
-              <div className="search__buttons">
-                <button>Google Search</button>
-                <button>I'm Feeling Lucky</button>
-              </div>
+
             </form>
           </div>
         </div>

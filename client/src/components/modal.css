@@ -9,14 +9,13 @@
     max-width: 560px;
     margin: 0 auto;
     margin-top: 40px;
-    box-shadow: 0 0 0 transparent; /* Initial shadow is transparent */
+    box-shadow: 0 0 0 transparent;
     
 }
 
 .active {
-    animation: blueShadow 1s infinite alternate; /* Alternate between transparent and blue every 1 second */
+    animation: blueShadow 1s infinite alternate;
 }
-
 
 @keyframes blueShadow {
     to {

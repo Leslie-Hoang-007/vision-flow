@@ -22,17 +22,19 @@ function App() {
   const [lastActionTime, setLastActionTime] = useState(0);// last scroll
 
   // default calibration
-  const [up, setUp] = useState(0.1);
+  const [up, setUp] = useState(0.05);
   const [down, setDown] = useState(0.5);
   const [left, setLeft] = useState(0.6);
   const [right, setRight] = useState(0.3);
-  
+
   // Page State
   const [loading, setLoading] = useState(true);
-  const [calibrate, setCalibrate] = useState(true);
+  const [calibrate, setCalibrate] = useState(false);
   const [dirCal, setdirCal] = useState('Up');
   const [start, setStart] = useState(true);
-  
+  const [doneSetup, setDoneSetup] = useState(false);
+  const [searchPrompt, setSearchPrompt] = useState(null);
+
   // Audio Transcription 
   const [live, setLive] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -45,11 +47,56 @@ function App() {
   const close = () => setModalOpen(false);
   const open = () => setModalOpen(true);
 
+  // blink detection
+  const [blinkCount, setBlinkCount] = useState(0);
+  let blinkTimeout;
 
+  useEffect(() => {
+    async function createFaceLandmarker() {
+      const filesetResolver = await FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+      );
+      const landmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
+        baseOptions: {
+          modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`,
+          delegate: "GPU"
+        },
+        outputFaceBlendshapes: true,
+        runningMode,
+        numFaces: 1
+      });
+      setFaceLandmarker(landmarker);
+    }
+
+    // turn on landmarks
+    createFaceLandmarker();
+  }, []);
+
+  // enables cam when landmarks is loaded
+  useEffect(() => {
+    if (faceLandmarker) {
+      enableCam(); // Invoke enableCam right away
+      setLoading(false);
+    }
+  }, [faceLandmarker]);
+
+  useEffect(() => {
+    if (!doneSetup) {
+
+      isBlink();
+    }
+  }, [dBlendShapes]);
+
+  // ### VOICE ###
   // Start Recording Voice and ask for permission
   const startRecording = async () => {
+    if (start) {
+      setStart(false);
+    }
+    if (searchPrompt == null) {
+      setSearchPrompt(true);
+    }
     setIsRecording(true);
-    setStart(false);
     open();
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -99,6 +146,9 @@ function App() {
 
   // Stops voice recording and changes iframe src
   const stopRecording = () => {
+    if (searchPrompt == true) {
+      setSearchPrompt(false);
+    }
     setIsRecording(false);
     if (live && live.getReadyState() === 1) {
       live.finish();
@@ -113,39 +163,11 @@ function App() {
     setPrevtranscription(mutateString);
     setTranscription("");
     close();
+
   };
 
 
-  useEffect(() => {
-    async function createFaceLandmarker() {
-      const filesetResolver = await FilesetResolver.forVisionTasks(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
-      );
-      const landmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
-        baseOptions: {
-          modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`,
-          delegate: "GPU"
-        },
-        outputFaceBlendshapes: true,
-        runningMode,
-        numFaces: 1
-      });
-      setFaceLandmarker(landmarker);
-    }
-
-    // turn on landmarks
-    createFaceLandmarker();
-  }, []);
-
-  // enables cam when landmarks is loaded
-  useEffect(() => {
-    if (faceLandmarker) {
-      enableCam(); // Invoke enableCam right away
-      setLoading(false);
-    }
-  }, [faceLandmarker]);
-
-
+  // ### VIDEO ###
   // Enables Cam and videoRef
   const enableCam = async () => {
     if (!faceLandmarker) {
@@ -171,10 +193,9 @@ function App() {
     }
   };
 
+
+  // Set Webcam > Server > Mask Data > Display
   const predictWebcam = async () => {
-
-
-    // Set Output Video + Mask Data
     const radio = videoRef.current.videoHeight / videoRef.current.videoWidth;
     videoRef.current.style.width = videoWidth + "px";
     videoRef.current.style.height = videoWidth * radio + "px";
@@ -255,8 +276,49 @@ function App() {
     }
   };
 
+  // Blink detection
+  const isBlink = async () => {
+    if (dBlendShapes?.[0]?.categories) {
+      const leftDown = dBlendShapes[0].categories[11].score;
+      const rightDown = dBlendShapes[0].categories[12].score;
+      const rightEyeIn = dBlendShapes[0].categories[14].score;
+      const leftEyeOut = dBlendShapes[0].categories[13].score;
+      const leftBlink = dBlendShapes[0].categories[9].score;
+      const rightBlink = dBlendShapes[0].categories[10].score;
+      let blink;
 
+      if (
+        leftDown > 0.5 &&
+        rightDown > 0.5 &&
+        leftBlink > 0.5 &&
+        rightBlink > 0.5
+      ) {
+        console.log("Blink");
+        blink = true;
+      }
 
+      if (blink) {
+        // increment blink count
+        setBlinkCount((prevCount) => prevCount + 1);
+        blink = false;
+
+        // reset count .5s
+        clearTimeout(blinkTimeout);
+        blinkTimeout = setTimeout(() => {
+          setBlinkCount(0);
+        }, 250);
+      }
+
+      if (blinkCount === 1) {
+        console.log("SINGLE BLINK!!");
+      } else if (blinkCount > 5) {
+        console.log("DOUBLE BLINK!!");
+        setDoneSetup(true);
+      }
+    }
+  };
+
+  // Scrolling handler
   const scrollU = (speed) => {
     const currentTime = Math.floor(new Date().getTime());
     setLastActionTime(currentTime);
@@ -275,65 +337,69 @@ function App() {
   const render = () => {
     if (dBlendShapes?.[0]?.categories) {
 
-      // PRINTING ALL BLENDEDSHAPES/LANDMARKDATA
+      // // PRINTING ALL BLENDEDSHAPES/LANDMARKDATA
       // const data = dBlendShapes[0].categories.map((shape) => (
       //   <div key={shape.displayName || shape.categoryName}>
       //     <li className="blend-shapes-item">
       //       <p className="blend-shapes-label">{shape.displayName || shape.categoryName}</p>
-      //       {/* <span className="blend-shapes-value" style={{ width: `calc(${(+shape.score) * 100}% - 120px)` }}/> */}
+      //       <span className="blend-shapes-value" style={{ width: `calc(${(+shape.score) * 100}% - 120px)` }}/>
 
-      //       <p>        {(shape.score).toFixed(4)}</p>
+      //       <p>{(shape.score).toFixed(4)}</p>
       //     </li>
       //   </div>
       // ));
-
-
+      const data = () => {
+        return (
+          <div>
+            <li>{/* Left Eye Look Down*/}
+              <p>{dBlendShapes[0].categories[11].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[11].score) * 100}% - 120px)` }} /> </p>
+              <p>{dBlendShapes[0].categories[11].score}</p>
+              {Math.floor(new Date().getTime()) > (lastActionTime + 250) && dBlendShapes[0].categories[11].score > down ? scrollU(dBlendShapes[0].categories[11].score) : null}
+            </li>
+            <li>{/* Right Eye Look Down*/}
+              <p>{dBlendShapes[0].categories[12].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[12].score) * 100}% - 120px)` }} /> </p>
+              <p>{dBlendShapes[0].categories[12].score}</p>
+            </li>
+            <li>{/* Left Eye Look Up*/}
+              <p>{dBlendShapes[0].categories[17].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[17].score) * 100}% )` }} /> </p>
+              <p>{dBlendShapes[0].categories[17].score}</p>
+              {Math.floor(new Date().getTime()) > (lastActionTime + 250) && dBlendShapes[0].categories[17].score > up ? scrollU(-(dBlendShapes[0].categories[17].score * 10)) : null}
+            </li>
+            <li>{/* Right Eye Look up*/}
+              <p>{dBlendShapes[0].categories[18].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[18].score) * 100}% )` }} /> </p>
+              <p>{dBlendShapes[0].categories[18].score}</p>
+            </li>
+            <li>{/* In Left */}
+              <p>{dBlendShapes[0].categories[13].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[13].score) * 100}% )` }} /> </p>
+              <p>{dBlendShapes[0].categories[13].score}</p>
+            </li>
+            <li>{/* In Right */}
+              <p>{dBlendShapes[0].categories[14].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[14].score) * 100}% )` }} /> </p>
+              <p>{dBlendShapes[0].categories[14].score}</p>
+            </li>
+            <li>{/* Out Left */}
+              <p>{dBlendShapes[0].categories[15].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[15].score) * 100}% )` }} /> </p>
+              <p>{dBlendShapes[0].categories[15].score}</p>
+              {doneSetup === true && isRecording === false && dBlendShapes[0].categories[15].score > left ? startRecording() : null}
+            </li>
+            <li>{/* Out Right */}
+              <p>{dBlendShapes[0].categories[16].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[16].score) * 100}% )` }} /> </p>
+              <p>{dBlendShapes[0].categories[16].score}</p>
+              {isRecording === true && dBlendShapes[0].categories[16].score > right ? stopRecording() : null}
+            </li>
+          </div>)
+      }
       // REVELENT DATA FOR BASIC OPPERATION
       return (
         <div>
-          <li>{/* Left Eye Look Down*/}
-            <p>{dBlendShapes[0].categories[11].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[11].score) * 100}% - 120px)` }} /> </p>
-            <p>{dBlendShapes[0].categories[11].score}</p>
-            {Math.floor(new Date().getTime()) > (lastActionTime + 250) && dBlendShapes[0].categories[11].score > down ? scrollU(dBlendShapes[0].categories[11].score) : null}
-          </li>
-          <li>{/* Right Eye Look Down*/}
-            <p>{dBlendShapes[0].categories[12].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[12].score) * 100}% - 120px)` }} /> </p>
-            <p>{dBlendShapes[0].categories[12].score}</p>
-          </li>
-          <li>{/* Left Eye Look Up*/}
-            <p>{dBlendShapes[0].categories[17].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[17].score) * 100}% )` }} /> </p>
-            <p>{dBlendShapes[0].categories[17].score}</p>
-            {Math.floor(new Date().getTime()) > (lastActionTime + 250) && dBlendShapes[0].categories[17].score > up ? scrollU(-(dBlendShapes[0].categories[17].score * 10)) : null}
-          </li>
-          <li>{/* Right Eye Look up*/}
-            <p>{dBlendShapes[0].categories[18].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[18].score) * 100}% )` }} /> </p>
-            <p>{dBlendShapes[0].categories[18].score}</p>
-          </li>
-          <li>{/* In Left */}
-            <p>{dBlendShapes[0].categories[13].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[13].score) * 100}% )` }} /> </p>
-            <p>{dBlendShapes[0].categories[13].score}</p>
-          </li>
-          <li>{/* In Right */}
-            <p>{dBlendShapes[0].categories[14].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[14].score) * 100}% )` }} /> </p>
-            <p>{dBlendShapes[0].categories[14].score}</p>
-          </li>
-          <li>{/* Out Left */}
-            <p>{dBlendShapes[0].categories[15].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[15].score) * 100}% )` }} /> </p>
-            <p>{dBlendShapes[0].categories[15].score}</p>
-            {isRecording === false && dBlendShapes[0].categories[15].score > left ? startRecording() : null}
-          </li>
-          <li>{/* Out Right */}
-            <p>{dBlendShapes[0].categories[16].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[16].score) * 100}% )` }} /> </p>
-            <p>{dBlendShapes[0].categories[16].score}</p>
-            {isRecording === true && dBlendShapes[0].categories[16].score > right ? stopRecording() : null}
-          </li>
+          {data()}
         </div>
       )
     }
   };
 
 
-  // HANDLE CALIBRATION PROTOCOL
+  // Handel Calibration
   const calStat = (x) => {
     if (dBlendShapes?.[0]?.categories) {
       if (x == 'up') {
@@ -342,7 +408,7 @@ function App() {
         setdirCal('Down');
       } else if (x == 'down') {
         console.log("Down Calibrate", dBlendShapes[0].categories[11].score)
-        setDown(dBlendShapes[0].categories[11].score * 1.4);
+        setDown(dBlendShapes[0].categories[11].score * 1.3);
         setdirCal('Left');
       } else if (x == 'left') {
         console.log("Left Calibrate", dBlendShapes[0].categories[15].score)
@@ -352,6 +418,7 @@ function App() {
         console.log("Right Calibrate", dBlendShapes[0].categories[16].score)
         setRight(dBlendShapes[0].categories[16].score * 1.4);
         setCalibrate(false);
+        setDoneSetup(true);
       }
     }
   }
@@ -366,49 +433,61 @@ function App() {
         <h1>Please allow access to camera and microphone and refresh page.</h1>
       </div>
 
-      {/* CALIBRATION PAGE*/}
-      <div className="cal-container" style={{ display: calibrate ? "block" : "none" }} >
-        {dirCal === 'Up' && <button className="cal upCal" onClick={() => calStat('up')}>Up claibrate</button>}
-        {dirCal === 'Down' && <button className="cal downCal" onClick={() => calStat('down')}>Down claibrate</button>}
-        {dirCal === 'Left' && <button className="cal leftCal" onClick={() => calStat('left')}>Left claibrate</button>}
-        {dirCal === 'Right' && <button className="cal rightCal" onClick={() => calStat('right')}>Right claibrate</button>}
-        <p>Look at the {dirCal} Button and Press to Calibrate</p>
-      </div>
+
+      {/* BODY */}
+      <div style={{ display: !loading ? "block" : "none" }} >
 
 
-
-      {/* MAIN PAGE */}
-      <div style={{ display: !calibrate ? "block" : "none" }} >
-        <div>{start && <Instructions />}
+        {/* CALIBRATION PAGE*/}
+        <div className="cal-container" style={{ display: calibrate ? "block" : "none" }} >
+          {dirCal === 'Up' && <button className="cal upCal" onClick={() => calStat('up')}>Up claibrate</button>}
+          {dirCal === 'Down' && <button className="cal downCal" onClick={() => calStat('down')}>Down claibrate</button>}
+          {dirCal === 'Left' && <button className="cal leftCal" onClick={() => calStat('left')}>Left claibrate</button>}
+          {dirCal === 'Right' && <button className="cal rightCal" onClick={() => calStat('right')}>Right claibrate</button>}
+          <p>Look at the {dirCal} Button and Press to Calibrate</p>
         </div>
-        <div>
-          {modalOpen && <Modal data={transcription} state={start} />}
-        </div>
-        <iframe
-          id="if1"
-          width="100%"
-          allowScriptAccess="always"
-          height="1000px"
-          src={site}
-          frameBorder="0"
-          allowFullScreen
-          scrolling="no"
-          style={{
-            display: !modalOpen ? "block" : "none",
-            position: 'reletative',
-            top: 0,
-            left: 0,
-            bottom: 0,
-            right: 0,
-            width: '100%',
-            height: '5000px',
-            border: 'none',
-            margin: 0,
-            padding: 0,
-            zIndex: 999999,
-          }}
-        ></iframe>
 
+
+
+        {/* SEARCH PAGE */}
+        <div className="searchText" style={{ display: !calibrate ? "block" : "none" }} >
+          {/* Calibrate Button */}
+          <button className="calibrateButton" onClick={() => setCalibrate(true)} style={{ display: !doneSetup ? 'block' : 'none' }}>Press to Calibrate <br /><br />or<br /> <br />Double Blink for Default Calibration</button>
+          
+          {/* SEARCH MODAL */}
+          <div>{start && doneSetup && <Instructions />}
+          </div>
+          <div style={{ display: searchPrompt ? "block" : "none" }} >Say Something!</div>
+          <div>
+            {modalOpen && <Modal data={transcription} state={start} />}
+          </div>
+
+          {/* SEARCH RESULTS */}
+          <iframe
+            id="if1"
+            width="100%"
+            allowScriptAccess="always"
+            height="1000px"
+            src={site}
+            frameBorder="0"
+            allowFullScreen
+            scrolling="no"
+            style={{
+              display: !modalOpen ? "block" : "none",
+              position: 'reletative',
+              top: 0,
+              left: 0,
+              bottom: 0,
+              right: 0,
+              width: '100%',
+              height: '5000px',
+              border: 'none',
+              margin: 0,
+              padding: 0,
+              zIndex: 999999,
+            }}
+          ></iframe>
+        </div>
       </div>
 
 
