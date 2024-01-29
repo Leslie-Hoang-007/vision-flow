@@ -22,8 +22,10 @@ function App() {
   const [lastActionTime, setLastActionTime] = useState(0);// last scroll
 
   // default calibration
-  const [up, setUp] = useState(0.065);
-  const [down, setDown] = useState(0.5);
+  // const [up, setUp] = useState(0.065);
+  // const [down, setDown] = useState(0.5);
+  const [up, setUp] = useState(0.08);
+  const [down, setDown] = useState(0.53);
   const [left, setLeft] = useState(0.6);
   const [right, setRight] = useState(0.3);
 
@@ -49,7 +51,16 @@ function App() {
 
   // blink detection
   const [blinkCount, setBlinkCount] = useState(0);
-  let blinkTimeout;
+
+  // Vertical eye acceleration
+  const [t1, setT1] = useState(new Date().getDate / 1000);
+  const [t2, setT2] = useState(new Date().getDate / 1000);
+  const [y1, setY1] = useState(0);
+  const [y2, setY2] = useState(0);
+  const [t3, setT3] = useState(new Date().getDate / 1000);
+  const [t4, setT4] = useState(new Date().getDate / 1000);
+  const [y3, setY3] = useState(0);
+  const [y4, setY4] = useState(0);
 
   useEffect(() => {
     async function createFaceLandmarker() {
@@ -80,92 +91,88 @@ function App() {
     }
   }, [faceLandmarker]);
 
+  // detect slow blink when page loads
   useEffect(() => {
     if (!doneSetup) {
-
-      isBlink();
+      isBlink();// slow blink detection
     }
   }, [dBlendShapes]);
 
-  // ### VOICE ###
-  // Start Recording Voice and ask for permission
-  const startRecording = async () => {
-    if (start) {
-      setStart(false);
-    }
-    if (searchPrompt == null) {
-      setSearchPrompt(true);
-    }
-    setIsRecording(true);
-    open();
-    try {
-      await navigator.mediaDevices.getUserMedia({ audio: true })
-        .then((stream) => {
-          console.log('GOT MIC');
-          console.log({ stream });
 
-          if (!MediaRecorder.isTypeSupported('audio/webm'))
-            return alert('Browser not supported')
-          const mediaRecorder = new MediaRecorder(stream, {
-            mimeType: 'audio/webm',
-          })
 
-          // make socket
-          let origLive = deepgram.listen.live({ model: "nova" });
+  // update t1 + y1 Update
+  useEffect(() => {
 
-          // set socket
-          setLive(origLive);
+    const acelTimer = setInterval(() => {
+      setT1(new Date().getTime() / 1000);
+      setT3(new Date().getTime() / 1000);
+      if (dBlendShapes != null) {
+        setY1(dBlendShapes[0]?.categories[11]?.score)
+        setY3(dBlendShapes[0]?.categories[17]?.score)
+      }
+    }, 500);
 
-          // turn on an stream
-          origLive.on(LiveTranscriptionEvents.Open, () => {
-            mediaRecorder.addEventListener('dataavailable', (event) => {
-              if (event.data.size > 0) {
-                if (origLive.getReadyState() === 1) {// stream when socket is open
-                  origLive.send(event.data);
-                }
-              }
-            })
-            mediaRecorder.start(250);// data avail every 1/4 second
-          });
+    return () => {
+      clearInterval(acelTimer);
+    };
 
-          // turn on and recieve
-          origLive.on(LiveTranscriptionEvents.Transcript, (data) => {
-            let results = data.channel.alternatives[0].transcript;
-            if (results.length > 0) {
-              console.log('recieved', results);
-              setTranscription(prev => prev == "" ? results : prev + " " + results);
+
+  }, [t1, y1, t3, y3]);
+
+  // update t2 + y2 Update
+  useEffect(() => {
+    const acelTimer = setInterval(() => {
+      setT2(new Date().getTime() / 1000);
+      setT4(new Date().getTime() / 1000);
+      if (dBlendShapes != null && doneSetup) {
+        setY2(dBlendShapes[0]?.categories[11]?.score)
+        setY4(dBlendShapes[0]?.categories[17]?.score)
+
+        // accelerated down scroll if orginating form center of screen
+        if (y2 != null && y2 != undefined && y1 != null && y1 != undefined && y1 != 0 && y2 != 0 && t1 != NaN && t2 != NaN && t1 != t2) {
+          const acceleration = (y2 - y1) / (t2 - t1);
+          if (acceleration > 1) {
+            if (y2 >0.5){// prevents downward acceleration after tooking up and returning to center
+              scrollA(1);// down
+              // console.log("true down acceleration @ ", acceleration);
+              // console.log("y Up position",y4)
+              // console.log("y Down position",y2)
             }
-          });
+          }
+        }
+        // Accelerated Up scroll ### Difficult to use
+        if (y4 != null && y4 != undefined && y3 != null && y3 != undefined && y3 != 0 && y4 != 0 && t3 != NaN && t4 != NaN && t3 != t4) {
+          const acceleration = (y4 - y3) / (t4 - t3);
+          if (acceleration > 1) {
+            console.log("Up Acceleration", acceleration);
+            scrollA(-1);// up
 
-        });
-    } catch (error) {
-      console.error('Error accessing microphone:', error);
-      setLoading(true);
-    }
-  };
+          }
+        }
+      }
+    }, 500 / 3);
+    return () => {
+      clearInterval(acelTimer);
+    };
+  }, [t2, y2, t4, y4]);
 
-  // Stops voice recording and changes iframe src
-  const stopRecording = () => {
-    if (searchPrompt == true) {
-      setSearchPrompt(false);
-    }
-    setIsRecording(false);
-    if (live && live.getReadyState() === 1) {
-      live.finish();
-      setLive(null);
-    }
-    let mutateString = transcription.replace(/ /g, "+");
-    console.log('recieved mutated', mutateString);
-    if (mutateString === "") {
-      mutateString = prevtranscription;
-    }
-    setSite("https://www.google.com/search?igu=1&ei=&q=" + mutateString);
-    setPrevtranscription(mutateString);
-    setTranscription("");
-    close();
 
-  };
 
+
+  // Scrolling handler for acceleration
+  const scrollA = (speed) => {
+    const currentTime = Math.floor(new Date().getTime());
+    setLastActionTime(currentTime);
+    let newSpeed;
+    if (speed > 0) {
+      console.log("Accelerated down scoll")
+      newSpeed = 175// SCROLL DOWN
+    } else {
+      console.log("Accelerated up scoll")
+      newSpeed = -350// SCROLL UP
+    }
+    window.scrollBy(0, newSpeed);
+  }
 
   // ### VIDEO ###
   // Enables Cam and videoRef
@@ -276,6 +283,8 @@ function App() {
     }
   };
 
+
+  let blinkTimeout;
   // Blink detection
   const isBlink = async () => {
     if (dBlendShapes?.[0]?.categories) {
@@ -310,9 +319,9 @@ function App() {
       }
 
       if (blinkCount === 1) {
-        console.log("SINGLE BLINK!!");
-      } else if (blinkCount > 5) {
-        console.log("DOUBLE BLINK!!");
+        console.log("Regular BLINK!!");
+      } else if (blinkCount > 5) {// 5 best or online 6 best for development
+        console.log("Slow BLINK!!");
         setDoneSetup(true);
       }
     }
@@ -322,16 +331,15 @@ function App() {
   const scrollU = (speed) => {
     const currentTime = Math.floor(new Date().getTime());
     setLastActionTime(currentTime);
-    console.log("value", (speed));// IMPLEMNT FASTER SCROLLING LATTER
+    console.log("USCROLL", (speed));// IMPLEMNT FASTER SCROLLING LATTER
     let newSpeed;
     if (speed > 0) {
       newSpeed = 100// SCROLL DOWN
     } else {
-      newSpeed = -100// SCROLL UP
+      newSpeed = -250// SCROLL UP
     }
     window.scrollBy(0, newSpeed);
   }
-
 
   // RENDER DEGUGGIN DATA / AND HAS JSX SCROLLING LOGIC
   const render = () => {
@@ -354,7 +362,8 @@ function App() {
             <li>{/* Left Eye Look Down*/}
               <p>{dBlendShapes[0].categories[11].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[11].score) * 100}% - 120px)` }} /> </p>
               <p>{dBlendShapes[0].categories[11].score}</p>
-              {Math.floor(new Date().getTime()) > (lastActionTime + 250) && dBlendShapes[0].categories[11].score > down ? scrollU(dBlendShapes[0].categories[11].score) : null}
+              {/* Scroll BOX OUTSIDE */}
+              {doneSetup && Math.floor(new Date().getTime()) > (lastActionTime + 250) && dBlendShapes[0].categories[11].score > down ? scrollU(dBlendShapes[0].categories[11].score) : null}
             </li>
             <li>{/* Right Eye Look Down*/}
               <p>{dBlendShapes[0].categories[12].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[12].score) * 100}% - 120px)` }} /> </p>
@@ -363,7 +372,8 @@ function App() {
             <li>{/* Left Eye Look Up*/}
               <p>{dBlendShapes[0].categories[17].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[17].score) * 100}% )` }} /> </p>
               <p>{dBlendShapes[0].categories[17].score}</p>
-              {Math.floor(new Date().getTime()) > (lastActionTime + 250) && dBlendShapes[0].categories[17].score > up ? scrollU(-(dBlendShapes[0].categories[17].score * 10)) : null}
+              {/* Scroll BOX OUTSIDE */}
+              {doneSetup && Math.floor(new Date().getTime()) > (lastActionTime + 250) && dBlendShapes[0].categories[17].score > up ? scrollU(-(dBlendShapes[0].categories[17].score * 10)) : null}
             </li>
             <li>{/* Right Eye Look up*/}
               <p>{dBlendShapes[0].categories[18].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[18].score) * 100}% )` }} /> </p>
@@ -399,29 +409,112 @@ function App() {
   };
 
 
-  // Handel Calibration
+  // Handel Calibration Screen Box
   const calStat = (x) => {
     if (dBlendShapes?.[0]?.categories) {
       if (x == 'up') {
-        console.log("Up Calibrate", dBlendShapes[0].categories[17].score)
-        setUp(dBlendShapes[0].categories[17].score * 1.4);
+        console.log("Up Calibrate", dBlendShapes[0].categories[17].score * 2)
+        // setUp(dBlendShapes[0].categories[17].score * 1.4);
+        setUp(dBlendShapes[0].categories[17].score * 2);
         setdirCal('Down');
       } else if (x == 'down') {
-        console.log("Down Calibrate", dBlendShapes[0].categories[11].score)
-        setDown(dBlendShapes[0].categories[11].score * 1.3);
+        console.log("Down Calibrate", dBlendShapes[0].categories[11].score * 1.2)
+        // setDown(dBlendShapes[0].categories[11].score * 1.3);
+        setDown(dBlendShapes[0].categories[11].score * 1.2);
         setdirCal('Left');
       } else if (x == 'left') {
-        console.log("Left Calibrate", dBlendShapes[0].categories[15].score)
-        setLeft(dBlendShapes[0].categories[15].score * 1.4);
+        console.log("Left Calibrate", dBlendShapes[0].categories[15].score * 1.5)
+        setLeft(dBlendShapes[0].categories[15].score * 1.7);
         setdirCal('Right');
       } else {
-        console.log("Right Calibrate", dBlendShapes[0].categories[16].score)
-        setRight(dBlendShapes[0].categories[16].score * 1.4);
+        console.log("Right Calibrate", dBlendShapes[0].categories[16].score * 1.5)
+        setRight(dBlendShapes[0].categories[16].score * 1.7);
         setCalibrate(false);
         setDoneSetup(true);
       }
     }
   }
+
+
+
+  // ### VOICE ###
+  // Start Recording Voice and ask for permission
+  const startRecording = async () => {
+    if (start) {
+      setStart(false);
+    }
+    if (searchPrompt == null) {
+      setSearchPrompt(true);
+    }
+    setIsRecording(true);
+    open();
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true })
+        .then((stream) => {
+          console.log('GOT MIC');
+          console.log({ stream });
+
+          if (!MediaRecorder.isTypeSupported('audio/webm'))
+            return alert('Browser not supported')
+          const mediaRecorder = new MediaRecorder(stream, {
+            mimeType: 'audio/webm',
+          })
+
+          // make socket
+          let origLive = deepgram.listen.live({ model: "nova" });
+
+          // set socket
+          setLive(origLive);
+
+          // turn on an stream
+          origLive.on(LiveTranscriptionEvents.Open, () => {
+            mediaRecorder.addEventListener('dataavailable', (event) => {
+              if (event.data.size > 0) {
+                if (origLive.getReadyState() === 1) {// stream when socket is open
+                  origLive.send(event.data);
+                }
+              }
+            })
+            mediaRecorder.start(250);// data avail every 1/4 second
+          });
+
+          // turn on and recieve
+          origLive.on(LiveTranscriptionEvents.Transcript, (data) => {
+            let results = data.channel.alternatives[0].transcript;
+            if (results.length > 0) {
+              console.log('recieved', results);
+              setTranscription(prev => prev == "" ? results : prev + " " + results);
+            }
+          });
+
+        });
+    } catch (error) {
+      console.error('Error accessing microphone:', error);
+      setLoading(true);
+    }
+  };
+
+  // Stops voice recording and changes iframe src
+  const stopRecording = () => {
+    if (searchPrompt == true) {
+      setSearchPrompt(false);
+    }
+    setIsRecording(false);
+    if (live && live.getReadyState() === 1) {
+      live.finish();
+      setLive(null);
+    }
+    let mutateString = transcription.replace(/ /g, "+");
+    console.log('recieved mutated', mutateString);
+    if (mutateString === "") {
+      mutateString = prevtranscription;
+    }
+    setSite("https://www.google.com/search?igu=1&ei=&q=" + mutateString);
+    setPrevtranscription(mutateString);
+    setTranscription("");
+    close();
+
+  };
 
 
   return (
@@ -453,7 +546,7 @@ function App() {
         <div className="searchText" style={{ display: !calibrate ? "block" : "none" }} >
           {/* Calibrate Button */}
           <button className="calibrateButton" onClick={() => setCalibrate(true)} style={{ display: !doneSetup ? 'block' : 'none' }}>Blink SLOWLY for Default Calibration<br /><br />or<br /><br />Press to Calibrate</button>
-          
+
           {/* SEARCH MODAL */}
           <div>{start && doneSetup && <Instructions />}
           </div>
