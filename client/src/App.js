@@ -49,7 +49,7 @@ function App() {
   const close = () => setModalOpen(false);
   const open = () => setModalOpen(true);
 
-  // blink detection
+  // slow blink detection
   const [blinkCount, setBlinkCount] = useState(0);
 
   // Vertical eye acceleration
@@ -61,6 +61,84 @@ function App() {
   const [t4, setT4] = useState(new Date().getDate / 1000);
   const [y3, setY3] = useState(0);
   const [y4, setY4] = useState(0);
+
+
+  // normal blink
+  const [blink, setBlink] = useState(false);
+  const [blinkTime, setBlinkTime] = useState(new Date().getTime() / 1000);
+
+
+
+  const [max, setMax] = useState(0);
+  const [min, setMin] = useState(0);
+
+
+  // if (min == 0) {
+  //   setMin(rightBlink);
+  // }
+  // if (rightBlink > max) {
+  //   setMax(rightBlink);
+  //   console.log('Max', rightBlink);
+
+  // }
+  // if (rightBlink < min) {
+  //   setMin(rightBlink);
+  //   console.log('Min', rightBlink);
+  // }
+
+
+  const [flag, setFlag] = useState(false);
+  const [flagTime, setFlagTime] = useState(new Date().getTime() / 1000);
+
+  const [downAcel, setDownAcel] = useState(0);
+
+  useEffect(() => {
+
+    if (dBlendShapes?.[0]?.categories) {
+      const leftDown = dBlendShapes[0]?.categories[11]?.score;
+      const rightDown = dBlendShapes[0]?.categories[12]?.score;
+      const rightEyeIn = dBlendShapes[0]?.categories[14]?.score;
+      const leftEyeOut = dBlendShapes[0]?.categories[13]?.score;
+      const leftBlink = dBlendShapes[0]?.categories[9]?.score;
+      const rightBlink = dBlendShapes[0]?.categories[10]?.score;
+
+
+
+      if (
+        leftDown > 0.6 &&
+        rightDown > 0.6 &&
+        ((leftBlink > 0.6 && rightBlink > 0.6) || (leftBlink > 0.59 && rightBlink > 0.6) || (leftBlink > 0.6 && rightBlink > 0.5))
+        && !blink
+        && (new Date().getTime() / 1000 > (flagTime + .2))// time sice last scroll
+        && ((new Date().getTime() / 1000) > (blinkTime + 1))// time inbetween blinks
+        && ((new Date().getTime()) > (lastActionTime + 200))// time between blinks and scroll. looking down if very similar to a blink based on values
+      ) {
+        // console.log("leftBlink", leftBlink)
+        // console.log("rightBlink", rightBlink)
+        // console.log("leftDown", leftDown)
+        // console.log("rightDown", rightDown)
+        // console.log("downAcel", downAcel)
+        setBlink(true);
+        setBlinkTime(new Date().getTime() / 1000);
+        console.log("blink @ ", blinkTime);
+      }
+
+      if (
+        blink &&
+        leftDown <= 0.5 &&
+        rightDown <= 0.5 &&
+        leftBlink <= 0.5 &&
+        rightBlink <= 0.5 &&
+        ((new Date().getTime() / 1000) > (blinkTime + .9))// time to unblink
+
+      ) {
+        setBlinkTime(new Date().getTime() / 1000);
+        setBlink(false);
+        console.log("unblink @ ", blinkTime);
+      }
+
+    }
+  }, [blink, dBlendShapes, blinkTime, min, max, downAcel, lastActionTime, flag, flagTime]);
 
   useEffect(() => {
     async function createFaceLandmarker() {
@@ -118,35 +196,71 @@ function App() {
 
 
   }, [t1, y1, t3, y3]);
-
   // update t2 + y2 Update
   useEffect(() => {
+
+
+    if (dBlendShapes != null && doneSetup) {
+      if (!blink && doneSetup && dBlendShapes[0]?.categories[17]?.score > up) {
+        scrollU(-(dBlendShapes[0]?.categories[17]?.score * 10))// up
+        setFlagTime(new Date().getTime() / 1000);
+
+      }
+      if (!blink && doneSetup && dBlendShapes[0]?.categories[11]?.score > down) {
+        scrollU(dBlendShapes[0]?.categories[11]?.score)// down
+        setFlagTime(new Date().getTime() / 1000);
+
+      }
+    }
+
+
     const acelTimer = setInterval(() => {
       setT2(new Date().getTime() / 1000);
       setT4(new Date().getTime() / 1000);
       if (dBlendShapes != null && doneSetup) {
-        setY2(dBlendShapes[0]?.categories[11]?.score)
-        setY4(dBlendShapes[0]?.categories[17]?.score)
+        setY2(dBlendShapes[0]?.categories[11]?.score)// down score
+        setY4(dBlendShapes[0]?.categories[17]?.score)// up score
+        if (
+          y2 != null && y2 != undefined && y1 != null && y1 != undefined && y1 != 0 && y2 != 0 && t1 != NaN && t2 != NaN && t1 != t2
+        ) {
+          const acel = (y2 - y1) / (t2 - t1);
 
+          setDownAcel(acel);
+        }
         // accelerated down scroll if orginating form center of screen
-        if (y2 != null && y2 != undefined && y1 != null && y1 != undefined && y1 != 0 && y2 != 0 && t1 != NaN && t2 != NaN && t1 != t2) {
+        if (!blink && y2 != null && y2 != undefined && y1 != null && y1 != undefined && y1 != 0 && y2 != 0 && t1 != NaN && t2 != NaN && t1 != t2) {
           const acceleration = (y2 - y1) / (t2 - t1);
-          if (acceleration > 1) {
-            if (y2 >0.5){// prevents downward acceleration after tooking up and returning to center
+
+          // if (min ==0){
+          //   setMin(y2);
+          // }
+          // if (y2>max){
+          //   setMax(y2);
+          //   console.log('Max',y2);
+
+          // }
+          // if (y2<min){
+          //   setMin(acceleration);
+          //   console.log('Min',y2);
+          // }
+
+          if (!blink && acceleration > 1) {
+            if (y2 > 0.38) {// prevents downward acceleration after tooking up and returning to center
               scrollA(1);// down
-              // console.log("true down acceleration @ ", acceleration);
-              // console.log("y Up position",y4)
-              // console.log("y Down position",y2)
+              console.log("true down acceleration @ ", acceleration);
+              console.log("y Down position", y2)
+              console.log("down");
+              setFlagTime(new Date().getTime() / 1000);
             }
           }
         }
         // Accelerated Up scroll ### Difficult to use
-        if (y4 != null && y4 != undefined && y3 != null && y3 != undefined && y3 != 0 && y4 != 0 && t3 != NaN && t4 != NaN && t3 != t4) {
+        if (!blink && y4 != null && y4 != undefined && y3 != null && y3 != undefined && y3 != 0 && y4 != 0 && t3 != NaN && t4 != NaN && t3 != t4) {
           const acceleration = (y4 - y3) / (t4 - t3);
-          if (acceleration > 0.14) {
-            
-            if (y4 > 0.1){
-              console.log("y value when scrolling up",y4);
+          if (acceleration > 0.01) {
+
+            if (y4 > 0.13) {
+              console.log("y value when scrolling up", y4);
               console.log("Up Acceleration", acceleration);
 
               scrollA(-1);// up
@@ -159,7 +273,7 @@ function App() {
     return () => {
       clearInterval(acelTimer);
     };
-  }, [t2, y2, t4, y4]);
+  }, [t2, y2, t4, y4, blink, min, max, blinkTime, doneSetup, downAcel, flag, flagTime]);
 
 
 
@@ -171,10 +285,10 @@ function App() {
     let newSpeed;
     if (speed > 0) {
       console.log("Accelerated down scoll")
-      newSpeed = 175// SCROLL DOWN
+      newSpeed = 50// SCROLL DOWN
     } else {
       console.log("Accelerated up scoll")
-      newSpeed = -175// SCROLL UP
+      newSpeed = -50// SCROLL UP
     }
     window.scrollBy(0, newSpeed);
   }
@@ -332,6 +446,8 @@ function App() {
     }
   };
 
+
+
   // Scrolling handler
   const scrollU = (speed) => {
     const currentTime = Math.floor(new Date().getTime());
@@ -339,9 +455,9 @@ function App() {
     console.log("USCROLL", (speed));// IMPLEMNT FASTER SCROLLING LATTER
     let newSpeed;
     if (speed > 0) {
-      newSpeed = 100// SCROLL DOWN
+      newSpeed = 25// SCROLL DOWN
     } else {
-      newSpeed = -250// SCROLL UP
+      newSpeed = -25// SCROLL UP
     }
     window.scrollBy(0, newSpeed);
   }
@@ -351,16 +467,16 @@ function App() {
     if (dBlendShapes?.[0]?.categories) {
 
       // // PRINTING ALL BLENDEDSHAPES/LANDMARKDATA
-      // const data = dBlendShapes[0].categories.map((shape) => (
-      //   <div key={shape.displayName || shape.categoryName}>
-      //     <li className="blend-shapes-item">
-      //       <p className="blend-shapes-label">{shape.displayName || shape.categoryName}</p>
-      //       <span className="blend-shapes-value" style={{ width: `calc(${(+shape.score) * 100}% - 120px)` }}/>
+      const data2 = dBlendShapes[0].categories.map((shape) => (
+        <div key={shape.displayName || shape.categoryName}>
+          <li className="blend-shapes-item">
+            <p className="blend-shapes-label">{shape.displayName || shape.categoryName}</p>
+            <span className="blend-shapes-value" style={{ width: `calc(${(+shape.score) * 100}% - 120px)` }} />
 
-      //       <p>{(shape.score).toFixed(4)}</p>
-      //     </li>
-      //   </div>
-      // ));
+            <p>{(shape.score).toFixed(4)}</p>
+          </li>
+        </div>
+      ));
       const data = () => {
         return (
           <div>
@@ -368,7 +484,7 @@ function App() {
               <p>{dBlendShapes[0].categories[11].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[11].score) * 100}% - 120px)` }} /> </p>
               <p>{dBlendShapes[0].categories[11].score}</p>
               {/* Scroll BOX OUTSIDE */}
-              {doneSetup && Math.floor(new Date().getTime()) > (lastActionTime + 250) && dBlendShapes[0].categories[11].score > down ? scrollU(dBlendShapes[0].categories[11].score) : null}
+              {/* {!blink && doneSetup && Math.floor(new Date().getTime()) > (lastActionTime + 250) && dBlendShapes[0].categories[11].score > down ? scrollU(dBlendShapes[0].categories[11].score) : null} */}
             </li>
             <li>{/* Right Eye Look Down*/}
               <p>{dBlendShapes[0].categories[12].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[12].score) * 100}% - 120px)` }} /> </p>
@@ -378,7 +494,7 @@ function App() {
               <p>{dBlendShapes[0].categories[17].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[17].score) * 100}% )` }} /> </p>
               <p>{dBlendShapes[0].categories[17].score}</p>
               {/* Scroll BOX OUTSIDE */}
-              {doneSetup && Math.floor(new Date().getTime()) > (lastActionTime + 250) && dBlendShapes[0].categories[17].score > up ? scrollU(-(dBlendShapes[0].categories[17].score * 10)) : null}
+              {/* {!blink && doneSetup && Math.floor(new Date().getTime()) > (lastActionTime + 250) && dBlendShapes[0].categories[17].score > up ? scrollU(-(dBlendShapes[0].categories[17].score * 10)) : null} */}
             </li>
             <li>{/* Right Eye Look up*/}
               <p>{dBlendShapes[0].categories[18].categoryName} <span className="blend-shapes-value" style={{ width: `calc(${(dBlendShapes[0].categories[18].score) * 100}% )` }} /> </p>
@@ -423,17 +539,17 @@ function App() {
         setUp(dBlendShapes[0].categories[17].score * 2);
         setdirCal('Down');
       } else if (x == 'down') {
-        console.log("Down Calibrate", dBlendShapes[0].categories[11].score * 1.2)
+        console.log("Down Calibrate", dBlendShapes[0].categories[11].score * 1.1)
         // setDown(dBlendShapes[0].categories[11].score * 1.3);
-        setDown(dBlendShapes[0].categories[11].score * 1.2);
+        setDown(dBlendShapes[0].categories[11].score * 1.1);
         setdirCal('Left');
       } else if (x == 'left') {
         console.log("Left Calibrate", dBlendShapes[0].categories[15].score * 1.5)
-        setLeft(dBlendShapes[0].categories[15].score * 1.7);
+        setLeft(dBlendShapes[0].categories[15].score * 1.5);
         setdirCal('Right');
       } else {
         console.log("Right Calibrate", dBlendShapes[0].categories[16].score * 1.5)
-        setRight(dBlendShapes[0].categories[16].score * 1.7);
+        setRight(dBlendShapes[0].categories[16].score * 1.5);
         setCalibrate(false);
         setDoneSetup(true);
       }
@@ -588,7 +704,7 @@ function App() {
       </div>
 
 
-      {/* DEGUB DATA*/}
+      {/* DEVELOPMENT + DEGUB DATA*/}
       <div className='debugStuff' style={{ display: 'none' }}>
         <div className='speach'>
           <h1>Speech Recognition Test</h1>
