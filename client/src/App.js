@@ -143,9 +143,14 @@ function App() {
         // Accelerated Up scroll ### Difficult to use
         if (y4 != null && y4 != undefined && y3 != null && y3 != undefined && y3 != 0 && y4 != 0 && t3 != NaN && t4 != NaN && t3 != t4) {
           const acceleration = (y4 - y3) / (t4 - t3);
-          if (acceleration > 1) {
-            console.log("Up Acceleration", acceleration);
-            scrollA(-1);// up
+          if (acceleration > 0.14) {
+            
+            if (y4 > 0.1){
+              console.log("y value when scrolling up",y4);
+              console.log("Up Acceleration", acceleration);
+
+              scrollA(-1);// up
+            }
 
           }
         }
@@ -169,7 +174,7 @@ function App() {
       newSpeed = 175// SCROLL DOWN
     } else {
       console.log("Accelerated up scoll")
-      newSpeed = -350// SCROLL UP
+      newSpeed = -175// SCROLL UP
     }
     window.scrollBy(0, newSpeed);
   }

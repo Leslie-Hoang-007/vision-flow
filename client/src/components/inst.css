@@ -72,3 +72,17 @@
     width: 100%;
     text-align: center;
 }
+
+.notify-search {
+    text-shadow: 0 0 0 transparent;
+    animation: textBlueShadow 1s infinite alternate;
+}
+
+@keyframes textBlueShadow {
+    to {
+        color: rgba(120, 170, 251, 0.5);
+        /* change text color*/
+        text-shadow: 0 0 10px rgba(66, 133, 244, 1);
+        /* change shadow color */
+    }
+}
